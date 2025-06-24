@@ -1,0 +1,93 @@
+✅ High-Level Architecture
+
+📦 com.yourcompany.netwin
+│
+├── 📁 data
+│   ├── 📁 model              → Data classes (User, Match, Wallet, etc.)
+│   ├── 📁 repository         → Firebase access, API calls
+│   ├── 📁 source
+│   │   ├── 📁 firebase       → Firestore/Realtime DB, Auth, Storage
+│   │   └── 📁 local          → Room DB (if needed)
+│
+├── 📁 domain
+│   ├── 📁 usecase            → Business logic (JoinMatchUseCase, WithdrawUseCase)
+│   └── 📁 utils              → Validation, extensions, constants
+│
+├── 📁 presentation
+│   ├── 📁 auth               → Login/Register/KYC screens
+│   ├── 📁 home               → Match list, join button, wallet summary
+│   ├── 📁 match              → Match details, room info
+│   ├── 📁 wallet             → Add money, withdraw, transaction history
+│   ├── 📁 leaderboard        → Rank, stats
+│   ├── 📁 admin              → Match creation, reward input (Admin-only)
+│   ├── 📁 components         → Reusable Compose UI components
+│   └── 📁 nav                → Navigation graph
+│
+├── 📁 di                     → Hilt dependency injection setup
+├── 📁 MainActivity.kt        → Launch entry
+└── 📄 NetWinApp.kt           → @Composable app root
+🔍 Explanation by Layer
+1. Data Layer
+Model: All data classes like User, Match, WalletTransaction, LeaderboardEntry, etc.
+
+Repository: Provides functions like getMatches(), joinMatch(), addMoney(), which interact with Firebase.
+
+Source:
+
+firebase: Handles Firestore reads/writes, Auth (OTP or Google), and Firebase Storage (profile/KYC uploads).
+
+local: Optional Room DB for caching or offline support.
+
+2. Domain Layer
+UseCases: Clean separation of logic. Example:
+
+kotlin
+Copy
+Edit
+class JoinMatchUseCase(private val repo: MatchRepository) {
+    suspend fun invoke(matchId: String, userId: String) = repo.joinMatch(matchId, userId)
+}
+Utils: Constants (e.g., Firestore collection names), date/time helpers, validations (e.g., isValidID()).
+
+3. Presentation Layer
+Built with Jetpack Compose
+
+Follows MVVM pattern (each screen has ViewModel)
+
+Examples:
+auth: login, register, password recovery, KYC upload
+
+home: shows list of tournaments, filters (solo/duo/squad), join options
+
+match: displays match info, room ID/password 15 min before
+
+wallet: add money (Razorpay/UPI), withdraw, view balance
+
+admin: only accessible by admin login; create/edit match, enter results
+
+4. DI Layer (Hilt)
+Modules to provide Firebase instances:
+
+kotlin
+Copy
+Edit
+@Provides
+fun provideFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+🛠️ Firebase Setup
+You will use Firebase for:
+
+Feature	Firebase Service
+Auth (Phone, Google)	Firebase Auth
+Realtime DB / Match Info	Firebase Firestore
+Profile Picture / KYC Docs	Firebase Storage
+Wallet Transactions (optional)	Firestore
+Notifications	Firebase Cloud Messaging (FCM)
+
+🚀 Tech Stack Summary
+Layer	Tool/Library
+UI	Jetpack Compose
+Navigation	Jetpack Navigation-Compose
+DI	Hilt
+Firebase	Auth, Firestore, Storage, FCM
+Payments	Razorpay SDK / Cashfree
+Testing	JUnit, Mockk, Compose UI Testing

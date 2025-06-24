@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "842283500427",
+    "project_id": "netwin-tournament",
+    "storage_bucket": "netwin-tournament.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:842283500427:android:82a8808598fb4bcde4258e",
+        "android_client_info": {
+          "package_name": "com.cehpoint.netwin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "842283500427-dkk98euhd2a8plc3vpm8gomavphrrk89.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cehpoint.netwin",
+            "certificate_hash": "8aaace556102756f7ecaa96d9aa5065eb3b156bb"
+          }
+        },
+        {
+          "client_id": "842283500427-ndjn5gsdlgr8kb73sbnr2vgd6oevep9j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNTuc2P7biQI_GAJ9BMFTh-SIdy3WKh3A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "842283500427-ndjn5gsdlgr8kb73sbnr2vgd6oevep9j.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
