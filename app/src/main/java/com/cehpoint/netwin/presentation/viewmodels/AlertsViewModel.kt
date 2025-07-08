@@ -32,44 +32,44 @@ class AlertsViewModel @Inject constructor() : ViewModel() {
                 _isLoading.value = true
                 _error.value = null
 
-                // TODO: Replace with actual API call
-                // Simulated data for now
-                val alerts = listOf(
-                    Alert(
-                        id = "1",
-                        type = AlertType.TOURNAMENT,
-                        title = "New Tournament Available",
-                        message = "Join the PUBG Mobile Squad Showdown starting in 2 hours!",
-                        timestamp = System.currentTimeMillis() - 1000 * 60 * 30, // 30 minutes ago
-                        isRead = false
-                    ),
-                    Alert(
-                        id = "2",
-                        type = AlertType.WIN,
-                        title = "Tournament Victory!",
-                        message = "Congratulations! Your team won the Battle Royale Championship!",
-                        timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 2, // 2 hours ago
-                        isRead = true
-                    ),
-                    Alert(
-                        id = "3",
-                        type = AlertType.PAYMENT,
-                        title = "Payment Successful",
-                        message = "Your tournament entry fee of ₹500 has been processed successfully.",
-                        timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 5, // 5 hours ago
-                        isRead = true
-                    ),
-                    Alert(
-                        id = "4",
-                        type = AlertType.SYSTEM,
-                        title = "System Maintenance",
-                        message = "Scheduled maintenance on June 15th, 2024 from 2 AM to 4 AM IST.",
-                        timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 24, // 1 day ago
-                        isRead = false
-                    )
-                )
-
-                _alertsState.value = AlertsState(alerts = alerts)
+//                // TODO: Replace with actual API call
+//                // Simulated data for now
+//                val alerts = listOf(
+//                    Alert(
+//                        id = "1",
+//                        type = AlertType.TOURNAMENT,
+//                        title = "New Tournament Available",
+//                        message = "Join the PUBG Mobile Squad Showdown starting in 2 hours!",
+//                        timestamp = System.currentTimeMillis() - 1000 * 60 * 30, // 30 minutes ago
+//                        isRead = false
+//                    ),
+//                    Alert(
+//                        id = "2",
+//                        type = AlertType.WIN,
+//                        title = "Tournament Victory!",
+//                        message = "Congratulations! Your team won the Battle Royale Championship!",
+//                        timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 2, // 2 hours ago
+//                        isRead = true
+//                    ),
+//                    Alert(
+//                        id = "3",
+//                        type = AlertType.PAYMENT,
+//                        title = "Payment Successful",
+//                        message = "Your tournament entry fee of ₹500 has been processed successfully.",
+//                        timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 5, // 5 hours ago
+//                        isRead = true
+//                    ),
+//                    Alert(
+//                        id = "4",
+//                        type = AlertType.SYSTEM,
+//                        title = "System Maintenance",
+//                        message = "Scheduled maintenance on June 15th, 2024 from 2 AM to 4 AM IST.",
+//                        timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 24, // 1 day ago
+//                        isRead = false
+//                    )
+//                )
+//
+//                _alertsState.value = AlertsState(alerts = alerts)
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to load alerts"
             } finally {

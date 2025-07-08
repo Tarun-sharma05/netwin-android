@@ -37,6 +37,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.draw.shadow
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +56,10 @@ fun KycScreen(
     var documentNumberError by remember { mutableStateOf<String?>(null) }
     var imageError by remember { mutableStateOf<String?>(null) }
     var showSuccess by remember { mutableStateOf(false) }
+    val supportedCountries = listOf("IN", "NG") // Add more as needed
+    val countryNames = mapOf("IN" to "India", "NG" to "Nigeria")
+    var countryDropdownExpanded by remember { mutableStateOf(false) }
+    var country by remember { mutableStateOf("") }
 
     // Image pickers
     val frontImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -65,6 +71,21 @@ fun KycScreen(
 
     // Selfie picker: system camera intent or gallery
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+//    val selfieCameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+//        if (success && cameraImageUri != null) {
+//            kycViewModel.uploadImage(userId, KycImageType.SELFIE, cameraImageUri!!)
+//        }
+//    }
+//    val selfieGalleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+//        uri?.let { kycViewModel.uploadImage(userId, KycImageType.SELFIE, it) }
+//    }
+    var showSelfieDialog by remember { mutableStateOf(false) }
+    fun createImageFile(): File {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+        return File.createTempFile("JPEG_${timeStamp}_", ".jpg", storageDir)
+    }
+
     val selfieCameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success && cameraImageUri != null) {
             kycViewModel.uploadImage(userId, KycImageType.SELFIE, cameraImageUri!!)
@@ -73,12 +94,32 @@ fun KycScreen(
     val selfieGalleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { kycViewModel.uploadImage(userId, KycImageType.SELFIE, it) }
     }
-    fun createImageFile(): File {
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-        return File.createTempFile("JPEG_${timeStamp}_", ".jpg", storageDir)
+
+    // Camera permission launcher
+    val cameraPermission = android.Manifest.permission.CAMERA
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            val photoFile = createImageFile()
+            val photoUri = FileProvider.getUriForFile(
+                context,
+                context.packageName + ".provider",
+                photoFile
+            )
+            cameraImageUri = photoUri
+            selfieCameraLauncher.launch(photoUri)
+            showSelfieDialog = false
+        } else {
+            Toast.makeText(context, "Camera permission is required", Toast.LENGTH_SHORT).show()
+        }
     }
-    var showSelfieDialog by remember { mutableStateOf(false) }
+//    fun createImageFile(): File {
+//        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+//        val storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+//        return File.createTempFile("JPEG_${timeStamp}_", ".jpg", storageDir)
+//    }
+//    var showSelfieDialog by remember { mutableStateOf(false) }
 
     // Observe KYC status
     LaunchedEffect(userId) {
@@ -110,6 +151,10 @@ fun KycScreen(
         }
         if (uiState.selfieUrl.isBlank()) {
             imageError = "Selfie is required."
+            return false
+        }
+        if (country.isBlank()) {
+            imageError = "Country is required."
             return false
         }
         return true
@@ -160,6 +205,8 @@ fun KycScreen(
                 }
                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     DocumentType.values().forEach { type ->
+                        // Only show Aadhaar if country is India
+                        if (type == DocumentType.AADHAR && country.uppercase() != "IN") return@forEach
                         DropdownMenuItem(
                             text = { Text(type.name) },
                             onClick = {
@@ -192,6 +239,46 @@ fun KycScreen(
                 Text(documentNumberError ?: "", color = Color.Red, fontSize = MaterialTheme.typography.bodySmall.fontSize)
             }
             Spacer(Modifier.height(16.dp))
+
+            // Country
+            ExposedDropdownMenuBox(
+                expanded = countryDropdownExpanded,
+                onExpandedChange = { countryDropdownExpanded = !countryDropdownExpanded }
+            ) {
+                OutlinedTextField(
+                    value = countryNames[country] ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Country", color = Color.White) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = countryDropdownExpanded) },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color.Cyan,
+                        unfocusedBorderColor = Color.Gray,
+                        cursorColor = Color.Cyan
+                    )
+                )
+                ExposedDropdownMenu(
+                    expanded = countryDropdownExpanded,
+                    onDismissRequest = { countryDropdownExpanded = false }
+                ) {
+                    supportedCountries.forEach { code ->
+                        DropdownMenuItem(
+                            text = { Text(countryNames[code] ?: code) },
+                            onClick = {
+                                country = code
+                                countryDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
 
             // Image Pickers
             Row(
@@ -263,6 +350,20 @@ fun KycScreen(
                 Spacer(Modifier.height(8.dp))
                 Text("Error: $it", color = Color.Red)
             }
+
+            // Clear form fields after successful submission
+            LaunchedEffect(showSuccess, uiState.error, uiState.isLoading) {
+                if (showSuccess && uiState.error == null && !uiState.isLoading) {
+                    documentType = DocumentType.PAN
+                    documentNumber = ""
+                    documentNumberError = null
+                    imageError = null
+                    kycViewModel.resetImages()
+                    // Optionally, you can set showSuccess = false after a delay
+                    // delay(2000)
+                    // showSuccess = false
+                }
+            }
         }
     }
 
@@ -274,16 +375,20 @@ fun KycScreen(
             text = {
                 Column {
                     Button(onClick = {
-                        // Take photo with camera
-                        val photoFile = createImageFile()
-                        val photoUri = FileProvider.getUriForFile(
-                            context,
-                            context.packageName + ".provider",
-                            photoFile
-                        )
-                        cameraImageUri = photoUri
-                        selfieCameraLauncher.launch(photoUri)
-                        showSelfieDialog = false
+                        // Check and request camera permission
+                        if (ContextCompat.checkSelfPermission(context, cameraPermission) == PackageManager.PERMISSION_GRANTED) {
+                            val photoFile = createImageFile()
+                            val photoUri = FileProvider.getUriForFile(
+                                context,
+                                context.packageName + ".provider",
+                                photoFile
+                            )
+                            cameraImageUri = photoUri
+                            selfieCameraLauncher.launch(photoUri)
+                            showSelfieDialog = false
+                        } else {
+                            cameraPermissionLauncher.launch(cameraPermission)
+                        }
                     }, modifier = Modifier.fillMaxWidth()) {
                         Text("Take Photo")
                     }

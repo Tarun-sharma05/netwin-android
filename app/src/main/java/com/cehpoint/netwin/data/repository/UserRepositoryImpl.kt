@@ -2,6 +2,7 @@ package com.cehpoint.netwin.data.repository
 
 import android.util.Log
 import com.cehpoint.netwin.ResultState
+import com.cehpoint.netwin.data.model.KycStatus
 import com.cehpoint.netwin.domain.model.User
 import com.cehpoint.netwin.domain.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -60,14 +61,36 @@ class UserRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getUser(userId: String): Result<User> = try {
+        Log.d("UserRepositoryImpl", "=== getUser STARTED ===")
+        Log.d("UserRepositoryImpl", "getUser - Called with userId = $userId")
+        Log.d("UserRepositoryImpl", "getUser - FirebaseAuth current user: ${firebaseAuth.currentUser}")
+        Log.d("UserRepositoryImpl", "getUser - FirebaseAuth current user UID: ${firebaseAuth.currentUser?.uid}")
+
         val docSnapshot = usersCollection.document(userId).get().await()
+        Log.d("UserRepositoryImpl", "getUser - Firestore document fetched: exists = ${docSnapshot.exists()}")
+        Log.d("UserRepositoryImpl", "getUser - Document data: ${docSnapshot.data}")
+        
         val user = docSnapshot.toObject(User::class.java)
+        Log.d("UserRepositoryImpl", "getUser - Parsed user object: $user")
+        
         if (user != null) {
+            Log.d("UserRepositoryImpl", "getUser - User found successfully")
+            Log.d("UserRepositoryImpl", "getUser - User ID: ${user.id}")
+            Log.d("UserRepositoryImpl", "getUser - User email: ${user.email}")
+            Log.d("UserRepositoryImpl", "getUser - User username: ${user.username}")
+            Log.d("UserRepositoryImpl", "getUser - User displayName: ${user.displayName}")
+            Log.d("UserRepositoryImpl", "getUser - User country: ${user.country}")
+            Log.d("UserRepositoryImpl", "getUser - User kycStatus: ${user.kycStatus}")
+            Log.d("UserRepositoryImpl", "=== getUser COMPLETED SUCCESS ===")
             Result.success(user)
         } else {
+            Log.e("UserRepositoryImpl", "getUser - User not found for userId = $userId")
+            Log.d("UserRepositoryImpl", "=== getUser COMPLETED FAILURE - USER NOT FOUND ===")
             Result.failure(Exception("User not found"))
         }
     } catch (e: Exception) {
+        Log.e("UserRepositoryImpl", "getUser - Error fetching user: ${e.message}", e)
+        Log.d("UserRepositoryImpl", "=== getUser COMPLETED FAILURE - EXCEPTION ===")
         Result.failure(e)
     }
 
@@ -123,5 +146,17 @@ class UserRepositoryImpl @Inject constructor(
         Result.success(user)
     } catch (e: Exception) {
         Result.failure(e)
+    }
+
+    override suspend fun getUserByUsername(username: String): Boolean {
+        return try {
+            val snapshot = usersCollection
+                .whereEqualTo("username", username)
+                .get()
+                .await()
+            !snapshot.isEmpty
+        } catch (e: Exception) {
+            false // treat as not found on error
+        }
     }
 } 

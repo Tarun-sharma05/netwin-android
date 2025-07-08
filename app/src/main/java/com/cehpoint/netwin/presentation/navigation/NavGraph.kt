@@ -6,10 +6,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,12 +22,28 @@ import androidx.navigation.navigation
 import com.cehpoint.netwin.data.remote.FirebaseManager
 import com.cehpoint.netwin.presentation.screens.*
 import com.cehpoint.netwin.presentation.viewmodels.AuthViewModel
+import com.cehpoint.netwin.presentation.viewmodels.ProfileViewModel
 
 @Composable
 fun NavGraph(firebaseManager: FirebaseManager) {
+    android.util.Log.d("NavGraph", "=== NavGraph COMPOSABLE STARTED ===")
+    
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = hiltViewModel()
+    val profileViewModel: ProfileViewModel = hiltViewModel()
     val isAuthenticated by authViewModel.isAuthenticated.collectAsState()
+    val isAuthStateInitialized by authViewModel.isAuthStateInitialized.collectAsState()
+    val shouldRecheckProfile by profileViewModel.shouldRecheckProfile.collectAsState()
+    
+    android.util.Log.d("NavGraph", "NavGraph - isAuthenticated: $isAuthenticated")
+    android.util.Log.d("NavGraph", "NavGraph - isAuthStateInitialized: $isAuthStateInitialized")
+    android.util.Log.d("NavGraph", "NavGraph - shouldRecheckProfile: $shouldRecheckProfile")
+    
+    // Simple state management
+    var selectedItemIndex by remember { mutableStateOf(0) }
+    var profileComplete by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    
+    android.util.Log.d("NavGraph", "NavGraph - profileComplete: $profileComplete")
     
     val items = listOf(
         bottomNavigationItem(name = "Tournaments", icon = Icons.Outlined.EmojiEvents),
@@ -35,31 +53,80 @@ fun NavGraph(firebaseManager: FirebaseManager) {
         bottomNavigationItem(name = "More", icon = Icons.Outlined.Menu)
     )
 
-    var selectedItemIndex by remember { mutableStateOf(0) }
     val currentDestinationAsState = navController.currentBackStackEntryAsState()
     val currentDestination = currentDestinationAsState.value?.destination?.route
     val shouldShowBottomBar = remember { mutableStateOf(true) }
 
-    // Handle authentication state changes
-    LaunchedEffect(isAuthenticated) {
-        if (isAuthenticated) {
-            navController.navigate(SubNavigation.HomeNavGraph) {
-                popUpTo(SubNavigation.AuthNavGraph) { inclusive = true }
+    // Single LaunchedEffect to handle all auth and profile logic
+    LaunchedEffect(isAuthenticated, isAuthStateInitialized, shouldRecheckProfile) {
+        android.util.Log.d("NavGraph", "=== LaunchedEffect TRIGGERED ===")
+        android.util.Log.d("NavGraph", "LaunchedEffect - isAuthenticated: $isAuthenticated")
+        android.util.Log.d("NavGraph", "LaunchedEffect - isAuthStateInitialized: $isAuthStateInitialized")
+        android.util.Log.d("NavGraph", "LaunchedEffect - shouldRecheckProfile: $shouldRecheckProfile")
+        
+        if (!isAuthStateInitialized) {
+            android.util.Log.d("NavGraph", "LaunchedEffect - Auth state not initialized yet, waiting...")
+            // Still loading
+            return@LaunchedEffect
+        }
+        
+        if (!isAuthenticated) {
+            android.util.Log.d("NavGraph", "LaunchedEffect - User not authenticated, resetting profile complete")
+            // User not authenticated
+            profileComplete = null
+            return@LaunchedEffect
+        }
+        
+        // User is authenticated, check profile completeness
+        if (profileComplete == null || shouldRecheckProfile) {
+            android.util.Log.d("NavGraph", "LaunchedEffect - Checking profile completeness")
+            
+            // Add a small delay to ensure NavHost is ready
+            kotlinx.coroutines.delay(100)
+            
+            profileViewModel.isProfileCompleteAsync { complete ->
+                profileComplete = complete
+                android.util.Log.d("NavGraph", "LaunchedEffect - Profile completeness result: $complete")
+                
+                // Navigate to ProfileSetupScreen if profile is incomplete
+                if (complete == false) {
+                    android.util.Log.d("NavGraph", "LaunchedEffect - Profile incomplete, navigating to ProfileSetupScreen")
+                    navController.navigate(ScreenRoutes.ProfileSetupScreen) {
+                        popUpTo(SubNavigation.HomeNavGraph) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+                
+                if (shouldRecheckProfile) {
+                    android.util.Log.d("NavGraph", "LaunchedEffect - Resetting recheck profile flag")
+                    profileViewModel.resetRecheckProfile()
+                }
             }
+        } else {
+            android.util.Log.d("NavGraph", "LaunchedEffect - Profile already checked, no need to recheck")
         }
     }
 
-    // Handle bottom bar visibility based on current destination
+    // Handle bottom bar visibility
     LaunchedEffect(currentDestination) {
-        shouldShowBottomBar.value = when (currentDestination) {
-            Screen.TournamentDetails.route -> false
+        shouldShowBottomBar.value = when {
+            currentDestination?.contains("TournamentDetails") == true -> false
+            currentDestination?.contains("ProfileSetupScreen") == true -> false
+            currentDestination?.contains("KycScreen") == true -> false
             else -> true
         }
     }
+
      Box {
          Scaffold(
              modifier = Modifier.fillMaxSize(),
              bottomBar = {
+                android.util.Log.d("NavGraph", "Bottom bar visibility check:")
+                android.util.Log.d("NavGraph", "  - shouldShowBottomBar: ${shouldShowBottomBar.value}")
+                android.util.Log.d("NavGraph", "  - isAuthenticated: $isAuthenticated")
+                android.util.Log.d("NavGraph", "  - profileComplete: $profileComplete")
+                android.util.Log.d("NavGraph", "  - Will show bottom bar: ${shouldShowBottomBar.value && isAuthenticated}")
+                
                  if (shouldShowBottomBar.value && isAuthenticated) {
                      NavigationBar(
                          containerColor = Color.Black,
@@ -68,30 +135,34 @@ fun NavGraph(firebaseManager: FirebaseManager) {
                          modifier = Modifier.background(Color.Black)
                      ) {
                          items.forEachIndexed { index, bottomNavigationItem ->
-                             val isSelected = selectedItemIndex == index
+                            val isSelected = selectedItemIndex == index
                              NavigationBarItem(
                                  selected = isSelected,
                                  onClick = {
-                                     selectedItemIndex = index
-                                     when (selectedItemIndex) {
-                                         0 -> navController.navigate(ScreenRoutes.TournamentsScreen)
-                                         1 -> navController.navigate(ScreenRoutes.WalletScreen)
-                                         2 -> navController.navigate(ScreenRoutes.LeaderboardScreen)
-                                         3 -> navController.navigate(ScreenRoutes.AlertsScreen)
-                                         4 -> navController.navigate(ScreenRoutes.MoreScreen)
+                                    if (selectedItemIndex != index) {
+                                        selectedItemIndex = index
+                                        when (index) {
+                                            0 -> navController.navigate(ScreenRoutes.TournamentsScreen)
+                                            1 -> navController.navigate(ScreenRoutes.WalletScreen)
+                                            2 -> navController.navigate(ScreenRoutes.LeaderboardScreen)
+                                            3 -> navController.navigate(ScreenRoutes.AlertsScreen)
+                                            4 -> navController.navigate(ScreenRoutes.MoreScreen)
+                                        }
                                      }
                                  },
                                  icon = {
                                      Icon(
                                          imageVector = bottomNavigationItem.icon,
                                          contentDescription = bottomNavigationItem.name,
-                                         tint = if (isSelected) Color.Cyan else Color.White
+                                         tint = if (isSelected) Color.Cyan else Color.White,
+                                         modifier = Modifier.size(20.dp)
                                      )
                                  },
                                  label = {
                                      Text(
                                          text = bottomNavigationItem.name,
-                                         color = if (isSelected) Color.Cyan else Color.White
+                                         color = if (isSelected) Color.Cyan else Color.White,
+                                         fontSize = 11.sp
                                      )
                                  }
                              )
@@ -100,18 +171,40 @@ fun NavGraph(firebaseManager: FirebaseManager) {
                  }
              }
          ) { innerPadding ->
-//             Box(
-//                 modifier = Modifier
-//                     .fillMaxSize()
-//                     .background(Color.Black)
-//                     .padding(
-//                         bottom = if (shouldShowBottomBar.value) innerPadding.calculateBottomPadding() else 0.dp
-//                     )
-//
-//             ) {
+            if (!isAuthStateInitialized) {
+                // Loading state
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = Color.Cyan,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            } else {
+                val startDestination = when {
+                    !isAuthenticated -> {
+                        android.util.Log.d("NavGraph", "NavHost - Start destination: AuthNavGraph (not authenticated)")
+                        android.util.Log.d("NavGraph", "NavHost - Reason: isAuthenticated = $isAuthenticated")
+                        SubNavigation.AuthNavGraph
+                    }
+                    else -> {
+                        // If user is authenticated, always go to HomeNavGraph
+                        // Profile completeness will be checked and handled within HomeNavGraph
+                        android.util.Log.d("NavGraph", "NavHost - Start destination: HomeNavGraph (authenticated)")
+                        android.util.Log.d("NavGraph", "NavHost - Reason: isAuthenticated = $isAuthenticated, profileComplete = $profileComplete")
+                        SubNavigation.HomeNavGraph
+                    }
+                }
+                
+                android.util.Log.d("NavGraph", "NavHost - Final start destination: $startDestination")
+                
                  NavHost(
                      navController = navController,
-                     startDestination = if (isAuthenticated) SubNavigation.HomeNavGraph else SubNavigation.AuthNavGraph
+                    startDestination = startDestination
                  ) {
                      navigation<SubNavigation.AuthNavGraph>(startDestination = ScreenRoutes.LoginScreen) {
                          composable<ScreenRoutes.LoginScreen> {
@@ -147,6 +240,9 @@ fun NavGraph(firebaseManager: FirebaseManager) {
                          composable<ScreenRoutes.KycScreen> {
                              KycScreen(navController = navController)
                          }
+                        composable<ScreenRoutes.ProfileSetupScreen> {
+                            ProfileSetupScreenUI(navController = navController)
+                        }
                          composable(
                              route = Screen.TournamentDetails.route,
                              arguments = listOf(
@@ -165,7 +261,7 @@ fun NavGraph(firebaseManager: FirebaseManager) {
                          }
                      }
                  }
-//             }
+            }
          }
      }
 }

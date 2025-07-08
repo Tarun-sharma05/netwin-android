@@ -35,7 +35,11 @@ enum class TransactionType {
     KILL_REWARD,
     REFUND,
     UPI_DEPOSIT,
-    UPI_WITHDRAWAL
+    UPI_WITHDRAWAL,
+    BANK_TRANSFER_DEPOSIT,
+    BANK_TRANSFER_WITHDRAWAL,
+    CARD_PAYMENT,
+    MOBILE_MONEY
 }
 
 enum class TransactionStatus {
@@ -52,5 +56,16 @@ enum class PaymentMethod {
     WALLET,
     CASH,
     CREDIT_CARD,
-    DEBIT_CARD
+    DEBIT_CARD,
+    // Nigerian payment methods
+    FLUTTERWAVE,
+    PAYSTACK,
+    INTERSWITCH,
+    GTBANK,
+    ZENITH_BANK,
+    ACCESS_BANK,
+    FIRST_BANK,
+    UBA,
+    MOBILE_MONEY_NG,
+    BANK_ACCOUNT_NG
 } 

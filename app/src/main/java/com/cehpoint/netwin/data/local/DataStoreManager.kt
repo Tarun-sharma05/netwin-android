@@ -1,6 +1,7 @@
 package com.cehpoint.netwin.data.local
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -8,6 +9,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,6 +22,7 @@ class DataStoreManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
+        private const val TAG = "DataStoreManager"
         private val USER_ID = stringPreferencesKey("user_id")
         private val USER_NAME = stringPreferencesKey("user_name")
         private val USER_EMAIL = stringPreferencesKey("user_email")
@@ -88,123 +92,175 @@ class DataStoreManager @Inject constructor(
 
     // User ID
     val userId: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_ID] ?: ""
+        val userId = preferences[USER_ID] ?: ""
+        Log.d(TAG, "DataStore - Reading userId: $userId")
+        userId
     }
 
     suspend fun setUserId(userId: String) {
+        Log.d(TAG, "DataStore - Setting userId: $userId")
         context.dataStore.edit { preferences ->
             preferences[USER_ID] = userId
         }
+        Log.d(TAG, "DataStore - userId set successfully")
+    }
+
+    suspend fun getUserId(): String {
+        return context.dataStore.data.first()[USER_ID] ?: ""
     }
 
     // User Name
     val userName: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_NAME] ?: ""
+        val userName = preferences[USER_NAME] ?: ""
+        Log.d(TAG, "DataStore - Reading userName: $userName")
+        userName
     }
 
     suspend fun setUserName(userName: String) {
+        Log.d(TAG, "DataStore - Setting userName: $userName")
         context.dataStore.edit { preferences ->
             preferences[USER_NAME] = userName
         }
+        Log.d(TAG, "DataStore - userName set successfully")
     }
 
     // User Email
     val userEmail: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_EMAIL] ?: ""
+        val userEmail = preferences[USER_EMAIL] ?: ""
+        Log.d(TAG, "DataStore - Reading userEmail: $userEmail")
+        userEmail
     }
 
     suspend fun setUserEmail(userEmail: String) {
+        Log.d(TAG, "DataStore - Setting userEmail: $userEmail")
         context.dataStore.edit { preferences ->
             preferences[USER_EMAIL] = userEmail
         }
+        Log.d(TAG, "DataStore - userEmail set successfully")
+    }
+
+    suspend fun getUserEmail(): String {
+        return context.dataStore.data.first()[USER_EMAIL] ?: ""
     }
 
     // User Phone
     val userPhone: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_PHONE] ?: ""
+        val userPhone = preferences[USER_PHONE] ?: ""
+        Log.d(TAG, "DataStore - Reading userPhone: $userPhone")
+        userPhone
     }
 
     suspend fun setUserPhone(userPhone: String) {
+        Log.d(TAG, "DataStore - Setting userPhone: $userPhone")
         context.dataStore.edit { preferences ->
             preferences[USER_PHONE] = userPhone
         }
+        Log.d(TAG, "DataStore - userPhone set successfully")
     }
 
     // User Profile Pic
     val userProfilePic: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_PROFILE_PIC] ?: ""
+        val userProfilePic = preferences[USER_PROFILE_PIC] ?: ""
+        Log.d(TAG, "DataStore - Reading userProfilePic: $userProfilePic")
+        userProfilePic
     }
 
     suspend fun setUserProfilePic(userProfilePic: String) {
+        Log.d(TAG, "DataStore - Setting userProfilePic: $userProfilePic")
         context.dataStore.edit { preferences ->
             preferences[USER_PROFILE_PIC] = userProfilePic
         }
+        Log.d(TAG, "DataStore - userProfilePic set successfully")
     }
 
     // User Token
     val userToken: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_TOKEN] ?: ""
+        val userToken = preferences[USER_TOKEN] ?: ""
+        Log.d(TAG, "DataStore - Reading userToken: ${userToken.take(20)}...")
+        userToken
     }
 
     suspend fun setUserToken(userToken: String) {
+        Log.d(TAG, "DataStore - Setting userToken: ${userToken.take(20)}...")
         context.dataStore.edit { preferences ->
             preferences[USER_TOKEN] = userToken
         }
+        Log.d(TAG, "DataStore - userToken set successfully")
     }
 
     // User Role
     val userRole: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_ROLE] ?: ""
+        val userRole = preferences[USER_ROLE] ?: ""
+        Log.d(TAG, "DataStore - Reading userRole: $userRole")
+        userRole
     }
 
     suspend fun setUserRole(userRole: String) {
+        Log.d(TAG, "DataStore - Setting userRole: $userRole")
         context.dataStore.edit { preferences ->
             preferences[USER_ROLE] = userRole
         }
+        Log.d(TAG, "DataStore - userRole set successfully")
     }
 
     // User Status
     val userStatus: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_STATUS] ?: ""
+        val userStatus = preferences[USER_STATUS] ?: ""
+        Log.d(TAG, "DataStore - Reading userStatus: $userStatus")
+        userStatus
     }
 
     suspend fun setUserStatus(userStatus: String) {
+        Log.d(TAG, "DataStore - Setting userStatus: $userStatus")
         context.dataStore.edit { preferences ->
             preferences[USER_STATUS] = userStatus
         }
+        Log.d(TAG, "DataStore - userStatus set successfully")
     }
 
     // User Created At
     val userCreatedAt: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_CREATED_AT] ?: ""
+        val userCreatedAt = preferences[USER_CREATED_AT] ?: ""
+        Log.d(TAG, "DataStore - Reading userCreatedAt: $userCreatedAt")
+        userCreatedAt
     }
 
     suspend fun setUserCreatedAt(userCreatedAt: String) {
+        Log.d(TAG, "DataStore - Setting userCreatedAt: $userCreatedAt")
         context.dataStore.edit { preferences ->
             preferences[USER_CREATED_AT] = userCreatedAt
         }
+        Log.d(TAG, "DataStore - userCreatedAt set successfully")
     }
 
     // User Updated At
     val userUpdatedAt: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_UPDATED_AT] ?: ""
+        val userUpdatedAt = preferences[USER_UPDATED_AT] ?: ""
+        Log.d(TAG, "DataStore - Reading userUpdatedAt: $userUpdatedAt")
+        userUpdatedAt
     }
 
     suspend fun setUserUpdatedAt(userUpdatedAt: String) {
+        Log.d(TAG, "DataStore - Setting userUpdatedAt: $userUpdatedAt")
         context.dataStore.edit { preferences ->
             preferences[USER_UPDATED_AT] = userUpdatedAt
         }
+        Log.d(TAG, "DataStore - userUpdatedAt set successfully")
     }
 
     // User Last Login
     val userLastLogin: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[USER_LAST_LOGIN] ?: ""
+        val userLastLogin = preferences[USER_LAST_LOGIN] ?: ""
+        Log.d(TAG, "DataStore - Reading userLastLogin: $userLastLogin")
+        userLastLogin
     }
 
     suspend fun setUserLastLogin(userLastLogin: String) {
+        Log.d(TAG, "DataStore - Setting userLastLogin: $userLastLogin")
         context.dataStore.edit { preferences ->
             preferences[USER_LAST_LOGIN] = userLastLogin
         }
+        Log.d(TAG, "DataStore - userLastLogin set successfully")
     }
 
     // User Last Login IP
@@ -803,8 +859,50 @@ class DataStoreManager @Inject constructor(
 
     // Clear all data
     suspend fun clearAll() {
+        Log.d(TAG, "DataStore - Clearing all data")
         context.dataStore.edit { preferences ->
             preferences.clear()
         }
+        Log.d(TAG, "DataStore - All data cleared successfully")
+    }
+
+    // Debug method to check all DataStore data
+    suspend fun debugDataStoreData() {
+        Log.d(TAG, "=== DEBUG DATASTORE DATA ===")
+        try {
+            val userId = userId.first()
+            val userName = userName.first()
+            val userEmail = userEmail.first()
+            val userPhone = userPhone.first()
+            val userToken = userToken.first()
+            val userRole = userRole.first()
+            val userStatus = userStatus.first()
+            val userCreatedAt = userCreatedAt.first()
+            val userUpdatedAt = userUpdatedAt.first()
+            val userLastLogin = userLastLogin.first()
+
+            Log.d(TAG, "DataStore Debug - User ID: $userId")
+            Log.d(TAG, "DataStore Debug - User Name: $userName")
+            Log.d(TAG, "DataStore Debug - User Email: $userEmail")
+            Log.d(TAG, "DataStore Debug - User Phone: $userPhone")
+            Log.d(TAG, "DataStore Debug - User Token: ${userToken.take(20)}...")
+            Log.d(TAG, "DataStore Debug - User Role: $userRole")
+            Log.d(TAG, "DataStore Debug - User Status: $userStatus")
+            Log.d(TAG, "DataStore Debug - User Created At: $userCreatedAt")
+            Log.d(TAG, "DataStore Debug - User Updated At: $userUpdatedAt")
+            Log.d(TAG, "DataStore Debug - User Last Login: $userLastLogin")
+
+            val hasUserData = userId.isNotEmpty() && userToken.isNotEmpty()
+            Log.d(TAG, "DataStore Debug - Has user data: $hasUserData")
+            Log.d(TAG, "=== END DEBUG DATASTORE DATA ===")
+        } catch (e: Exception) {
+            Log.e(TAG, "DataStore Debug - Error reading DataStore data", e)
+        }
+    }
+
+    suspend fun hasMinimalUserData(): Boolean {
+        val userId = userId.firstOrNull().orEmpty()
+        val userEmail = userEmail.firstOrNull().orEmpty()
+        return userId.isNotBlank() && userEmail.isNotBlank()
     }
 } 

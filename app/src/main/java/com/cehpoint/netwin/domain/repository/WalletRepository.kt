@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 
 interface WalletRepository {
     fun getWalletBalance(userId: String): Flow<Double>
+    fun getWithdrawableBalance(userId: String): Flow<Double>
+    fun getBonusBalance(userId: String): Flow<Double>
     fun getTransactions(userId: String): Flow<List<Transaction>>
     fun getPendingDeposits(userId: String): Flow<List<PendingDeposit>>
     

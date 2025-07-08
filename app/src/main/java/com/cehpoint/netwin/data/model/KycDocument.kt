@@ -14,7 +14,7 @@ data class KycDocument(
     val rejectionReason: String? = null,
     val verifiedAt: Timestamp? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long? = null,
+    val updatedAt: Timestamp? = null,
     val reviewedBy: String? = null
 )
 

@@ -10,6 +10,7 @@ import com.cehpoint.netwin.data.model.WithdrawalRequest
 import com.cehpoint.netwin.data.model.UserDetails
 import com.cehpoint.netwin.data.remote.FirebaseManager
 import com.cehpoint.netwin.domain.repository.WalletRepository
+import com.cehpoint.netwin.utils.NGNTransactionUtils
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -21,40 +22,59 @@ class WalletRepositoryImpl @Inject constructor(
 ) : WalletRepository {
 
     private val usersCollection = firebaseManager.firestore.collection("users")
+    private val walletsCollection = firebaseManager.firestore.collection("wallets")
     private val transactionsCollection = firebaseManager.firestore.collection("transactions")
     private val pendingDepositsCollection = firebaseManager.firestore.collection("pending_deposits")
     private val pendingWithdrawalsCollection = firebaseManager.firestore.collection("pending_withdrawals")
 
     override fun getWalletBalance(userId: String): Flow<Double> = callbackFlow {
-        val subscription = usersCollection.document(userId)
+        val listener = walletsCollection.document(userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     close(error)
                     return@addSnapshotListener
                 }
-                val withdrawable = snapshot?.getDouble("withdrawableBalance")
-                val legacy = snapshot?.getDouble("walletBalance") ?: 0.0
-                val balance = withdrawable ?: legacy
+                
+                val wallet = snapshot?.toObject(com.cehpoint.netwin.data.model.Wallet::class.java)
+                val balance = (wallet?.withdrawableBalance ?: 0.0) + (wallet?.bonusBalance ?: 0.0)
                 trySend(balance)
             }
-        awaitClose { subscription.remove() }
+        
+        awaitClose { listener.remove() }
     }
 
-    fun getBonusBalance(userId: String): Flow<Double> = callbackFlow {
-        val subscription = usersCollection.document(userId)
+    override fun getWithdrawableBalance(userId: String): Flow<Double> = callbackFlow {
+        val listener = walletsCollection.document(userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     close(error)
                     return@addSnapshotListener
                 }
-                val bonus = snapshot?.getDouble("bonusBalance") ?: 0.0
-                trySend(bonus)
+                
+                val wallet = snapshot?.toObject(com.cehpoint.netwin.data.model.Wallet::class.java)
+                trySend(wallet?.withdrawableBalance ?: 0.0)
             }
-        awaitClose { subscription.remove() }
+        
+        awaitClose { listener.remove() }
+    }
+
+    override fun getBonusBalance(userId: String): Flow<Double> = callbackFlow {
+        val listener = walletsCollection.document(userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                
+                val wallet = snapshot?.toObject(com.cehpoint.netwin.data.model.Wallet::class.java)
+                trySend(wallet?.bonusBalance ?: 0.0)
+            }
+        
+        awaitClose { listener.remove() }
     }
 
     override fun getTransactions(userId: String): Flow<List<Transaction>> = callbackFlow {
-        val subscription = transactionsCollection
+        val listener = transactionsCollection
             .whereEqualTo("userId", userId)
             .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
@@ -62,153 +82,81 @@ class WalletRepositoryImpl @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
+                
                 val transactions = snapshot?.documents?.mapNotNull { doc ->
-                    try {
-                        val transaction = Transaction(
-                            id = doc.id,
-                            userId = doc.getString("userId") ?: "",
-                            amount = doc.getDouble("amount") ?: 0.0,
-                            currency = doc.getString("currency") ?: "INR",
-                            type = TransactionType.valueOf(doc.getString("type") ?: "DEPOSIT"),
-                            status = TransactionStatus.valueOf(doc.getString("status") ?: "PENDING"),
-                            description = doc.getString("description") ?: "",
-                            paymentMethod = PaymentMethod.valueOf(doc.getString("paymentMethod") ?: "UPI"),
-                            metadata = doc.get("metadata") as? Map<String, Any> ?: emptyMap(),
-                            tournamentId = doc.getString("tournamentId"),
-                            tournamentTitle = doc.getString("tournamentTitle"),
-                            upiRefId = doc.getString("upiRefId"),
-                            userUpiId = doc.getString("userUpiId"),
-                            adminNotes = doc.getString("adminNotes"),
-                            fee = doc.getDouble("fee"),
-                            netAmount = doc.getDouble("netAmount"),
-                            rejectionReason = doc.getString("rejectionReason"),
-                            depositRequestId = doc.getString("depositRequestId"),
-                            verifiedBy = doc.getString("verifiedBy"),
-                            verifiedAt = doc.getTimestamp("verifiedAt"),
-                            createdAt = doc.getTimestamp("createdAt"),
-                            updatedAt = doc.getTimestamp("updatedAt")
-                        )
-                        transaction
-                    } catch (e: Exception) {
-                        null
-                    }
+                    doc.toObject(Transaction::class.java)?.copy(id = doc.id)
                 } ?: emptyList()
                 trySend(transactions)
             }
-        awaitClose { subscription.remove() }
+        
+        awaitClose { listener.remove() }
     }
 
     override fun getPendingDeposits(userId: String): Flow<List<PendingDeposit>> = callbackFlow {
-        android.util.Log.d("WalletRepositoryImpl", "Querying pending deposits for user: $userId")
-        val subscription = pendingDepositsCollection
+        val listener = pendingDepositsCollection
             .whereEqualTo("userId", userId)
             .whereEqualTo("status", DepositStatus.PENDING)
+            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    android.util.Log.e("WalletRepositoryImpl", "Error fetching pending deposits: ${error.message}")
                     close(error)
                     return@addSnapshotListener
                 }
+                
                 val deposits = snapshot?.documents?.mapNotNull { doc ->
-                    try {
-                        PendingDeposit(
-                            requestId = doc.id,
-                            userId = doc.getString("userId") ?: "",
-                            amount = doc.getDouble("amount") ?: 0.0,
-                            currency = doc.getString("currency") ?: "INR",
-                            upiRefId = doc.getString("upiRefId") ?: "",
-                            userUpiId = doc.getString("userUpiId") ?: "",
-                            screenshotUrl = doc.getString("screenshotUrl"),
-                            adminNotes = doc.getString("adminNotes"),
-                            status = DepositStatus.valueOf(doc.getString("status") ?: "PENDING"),
-                            verifiedBy = doc.getString("verifiedBy"),
-                            verifiedAt = doc.getTimestamp("verifiedAt"),
-                            rejectionReason = doc.getString("rejectionReason"),
-                            createdAt = doc.getTimestamp("createdAt"),
-                            updatedAt = doc.getTimestamp("updatedAt")
-                        )
-                    } catch (e: Exception) {
-                        null
-                    }
-                }?.sortedByDescending { it.createdAt } ?: emptyList()
-                android.util.Log.d("WalletRepositoryImpl", "Fetched pending deposits: ${deposits.size}")
+                    doc.toObject(PendingDeposit::class.java)?.copy(requestId = doc.id)
+                } ?: emptyList()
                 trySend(deposits)
             }
-        awaitClose { 
-            android.util.Log.d("WalletRepositoryImpl", "Pending deposits listener closed for user: $userId")
-            subscription.remove() 
-        }
+        
+        awaitClose { listener.remove() }
     }
 
     override suspend fun createPendingDeposit(deposit: PendingDeposit): Result<String> = try {
-        val depositData = mapOf(
-            "userId" to deposit.userId,
-            "amount" to deposit.amount,
-            "currency" to deposit.currency,
-            "upiRefId" to deposit.upiRefId,
-            "userUpiId" to deposit.userUpiId,
-            "screenshotUrl" to deposit.screenshotUrl,
-            "adminNotes" to deposit.adminNotes,
-            "status" to deposit.status.name,
-            "verifiedBy" to deposit.verifiedBy,
-            "verifiedAt" to deposit.verifiedAt,
-            "rejectionReason" to deposit.rejectionReason,
-            "createdAt" to deposit.createdAt,
-            "updatedAt" to deposit.updatedAt
-        )
-        val docRef = pendingDepositsCollection.add(depositData).await()
+        val docRef = pendingDepositsCollection.add(deposit).await()
         Result.success(docRef.id)
     } catch (e: Exception) {
         Result.failure(e)
     }
 
     override suspend fun verifyDeposit(depositId: String, adminId: String): Result<Unit> = try {
-        val deposit = pendingDepositsCollection.document(depositId).get().await()
-            .toObject(PendingDeposit::class.java) ?: throw Exception("Deposit not found")
+        val depositRef = pendingDepositsCollection.document(depositId)
+        val deposit = depositRef.get().await().toObject(PendingDeposit::class.java)
+            ?: throw Exception("Deposit not found")
 
-        if (deposit.status != DepositStatus.PENDING) {
-            throw Exception("Deposit is not in pending state")
-        }
+        firebaseManager.firestore.runTransaction { transaction ->
+            // Update deposit status
+            transaction.update(depositRef, "status", DepositStatus.APPROVED)
+            transaction.update(depositRef, "verifiedBy", adminId)
+            transaction.update(depositRef, "verifiedAt", com.google.firebase.Timestamp.now())
 
-        // Update deposit status
-        pendingDepositsCollection.document(depositId)
-            .update(
-                mapOf(
-                    "status" to DepositStatus.APPROVED,
-                    "verifiedBy" to adminId,
-                    "verifiedAt" to com.google.firebase.Timestamp.now()
-                )
-            ).await()
+            // Update wallet balance
+            val walletRef = walletsCollection.document(deposit.userId)
+            val wallet = transaction.get(walletRef).toObject(com.cehpoint.netwin.data.model.Wallet::class.java)
+                ?: throw Exception("Wallet not found")
 
-        // Create transaction
-        val transaction = Transaction(
-            userId = deposit.userId,
-            amount = deposit.amount,
-            type = TransactionType.UPI_DEPOSIT,
-            status = TransactionStatus.COMPLETED,
-            description = "UPI Deposit",
-            upiRefId = deposit.upiRefId,
-            userUpiId = deposit.userUpiId,
-            adminNotes = deposit.adminNotes,
-            fee = deposit.fee,
-            netAmount = deposit.netAmount,
-            rejectionReason = deposit.rejectionReason,
-            depositRequestId = depositId,
-            verifiedBy = adminId,
-            verifiedAt = com.google.firebase.Timestamp.now()
-        )
-        val transactionResult = createTransaction(transaction)
-        if (transactionResult.isFailure) {
-            android.util.Log.e("WalletRepositoryImpl", "Failed to create transaction: ${transactionResult.exceptionOrNull()?.message}")
-            throw transactionResult.exceptionOrNull() ?: Exception("Unknown error creating transaction")
-        }
+            val newWithdrawableBalance = wallet.withdrawableBalance + deposit.amount
+            transaction.update(walletRef, "withdrawableBalance", newWithdrawableBalance)
+            transaction.update(walletRef, "balance", newWithdrawableBalance + wallet.bonusBalance)
 
-        // Update wallet balance
-        val balanceResult = updateBalance(deposit.userId, deposit.amount)
-        if (balanceResult.isFailure) {
-            android.util.Log.e("WalletRepositoryImpl", "Failed to update balance: ${balanceResult.exceptionOrNull()?.message}")
-            throw balanceResult.exceptionOrNull() ?: Exception("Unknown error updating balance")
-        }
+            // Update user's walletBalance for display
+            val userRef = usersCollection.document(deposit.userId)
+            transaction.update(userRef, "walletBalance", newWithdrawableBalance + wallet.bonusBalance)
+
+            // Create transaction record with proper description
+            val transactionRecord = Transaction(
+                userId = deposit.userId,
+                amount = deposit.amount,
+                currency = deposit.currency,
+                type = NGNTransactionUtils.getTransactionTypeForPaymentMethod(deposit.paymentMethod, true),
+                status = TransactionStatus.COMPLETED,
+                description = NGNTransactionUtils.getPaymentDescription(deposit.paymentMethod, deposit.amount, deposit.currency),
+                paymentMethod = deposit.paymentMethod,
+                createdAt = com.google.firebase.Timestamp.now()
+            )
+            val transactionDocRef = transactionsCollection.document()
+            transaction.set(transactionDocRef, transactionRecord)
+        }.await()
 
         Result.success(Unit)
     } catch (e: Exception) {
@@ -220,8 +168,8 @@ class WalletRepositoryImpl @Inject constructor(
             .update(
                 mapOf(
                     "status" to DepositStatus.REJECTED,
-                    "verifiedBy" to adminId,
-                    "verifiedAt" to com.google.firebase.Timestamp.now(),
+                    "rejectedBy" to adminId,
+                    "rejectedAt" to com.google.firebase.Timestamp.now(),
                     "rejectionReason" to reason
                 )
             ).await()
@@ -231,31 +179,7 @@ class WalletRepositoryImpl @Inject constructor(
     }
 
     override suspend fun createTransaction(transaction: Transaction): Result<String> = try {
-        val transactionData = mapOf(
-            "userId" to transaction.userId,
-            "amount" to transaction.amount,
-            "currency" to transaction.currency,
-            "type" to transaction.type.name,
-            "status" to transaction.status.name,
-            "description" to transaction.description,
-            "paymentMethod" to transaction.paymentMethod.name,
-            "metadata" to transaction.metadata,
-            "tournamentId" to transaction.tournamentId,
-            "tournamentTitle" to transaction.tournamentTitle,
-            "upiRefId" to transaction.upiRefId,
-            "userUpiId" to transaction.userUpiId,
-            "adminNotes" to transaction.adminNotes,
-            "fee" to transaction.fee,
-            "netAmount" to transaction.netAmount,
-            "rejectionReason" to transaction.rejectionReason,
-            "depositRequestId" to transaction.depositRequestId,
-            "verifiedBy" to transaction.verifiedBy,
-            "verifiedAt" to transaction.verifiedAt,
-            "createdAt" to com.google.firebase.Timestamp.now(),
-            "updatedAt" to com.google.firebase.Timestamp.now()
-        )
-        
-        val docRef = transactionsCollection.add(transactionData).await()
+        val docRef = transactionsCollection.add(transaction).await()
         Result.success(docRef.id)
     } catch (e: Exception) {
         Result.failure(e)
@@ -271,82 +195,99 @@ class WalletRepositoryImpl @Inject constructor(
     }
 
     override suspend fun checkBalance(userId: String, amount: Double): Boolean = try {
-        val user = usersCollection.document(userId).get().await()
-        val balance = user.getDouble("walletBalance") ?: 0.0
-        balance >= amount
+        val wallet = walletsCollection.document(userId).get().await().toObject(com.cehpoint.netwin.data.model.Wallet::class.java)
+        val totalBalance = (wallet?.withdrawableBalance ?: 0.0) + (wallet?.bonusBalance ?: 0.0)
+        totalBalance >= amount
     } catch (e: Exception) {
         false
     }
 
     override suspend fun updateBalance(userId: String, amount: Double): Result<Unit> = try {
-        val userRef = usersCollection.document(userId)
-        val user = userRef.get().await()
-        val currentBalance = user.getDouble("walletBalance") ?: 0.0
-        userRef.update("walletBalance", currentBalance + amount).await()
+        val walletRef = walletsCollection.document(userId)
+        val wallet = walletRef.get().await().toObject(com.cehpoint.netwin.data.model.Wallet::class.java)
+            ?: throw Exception("Wallet not found")
+
+        val newWithdrawableBalance = wallet.withdrawableBalance + amount
+        val newTotalBalance = newWithdrawableBalance + wallet.bonusBalance
+
+        walletRef.update(
+            mapOf(
+                "withdrawableBalance" to newWithdrawableBalance,
+                "balance" to newTotalBalance
+            )
+        ).await()
+
+        // Update user's walletBalance for display
+        usersCollection.document(userId).update("walletBalance", newTotalBalance).await()
+
         Result.success(Unit)
     } catch (e: Exception) {
         Result.failure(e)
     }
 
     override suspend fun createWithdrawalRequest(request: WithdrawalRequest): Result<String> = try {
-        val data = hashMapOf(
-            "userId" to request.userId,
-            "amount" to request.amount,
-            "currency" to request.currency,
-            "upiId" to request.upiId,
-            "status" to request.status,
-            "rejectionReason" to request.rejectionReason,
-            "createdAt" to request.createdAt,
-            "updatedAt" to request.updatedAt,
-            "verifiedAt" to request.verifiedAt,
-            "userDetails" to hashMapOf(
-                "email" to request.userDetails.email,
-                "name" to request.userDetails.name,
-                "username" to request.userDetails.username,
-                "userId" to request.userDetails.userId
+        val wallet = walletsCollection.document(request.userId).get().await().toObject(com.cehpoint.netwin.data.model.Wallet::class.java)
+            ?: throw Exception("Wallet not found")
+
+        if (wallet.withdrawableBalance < request.amount) {
+            throw Exception("Insufficient withdrawable balance")
+        }
+
+        firebaseManager.firestore.runTransaction { transaction ->
+            // Create withdrawal request
+            val withdrawalRef = pendingWithdrawalsCollection.document()
+            transaction.set(withdrawalRef, request)
+
+            // Deduct from wallet
+            val newWithdrawableBalance = wallet.withdrawableBalance - request.amount
+            val newTotalBalance = newWithdrawableBalance + wallet.bonusBalance
+            
+            transaction.update(walletsCollection.document(request.userId), 
+                mapOf(
+                    "withdrawableBalance" to newWithdrawableBalance,
+                    "balance" to newTotalBalance
+                )
             )
-        )
-        val docRef = pendingWithdrawalsCollection.add(data).await()
-        Result.success(docRef.id)
+            
+            // Update user's walletBalance for display
+            transaction.update(usersCollection.document(request.userId), "walletBalance", newTotalBalance)
+
+            // Create transaction record
+            val transactionRecord = Transaction(
+                userId = request.userId,
+                amount = request.amount,
+                currency = request.currency,
+                type = NGNTransactionUtils.getTransactionTypeForPaymentMethod(request.paymentMethod, false),
+                status = TransactionStatus.PENDING,
+                description = NGNTransactionUtils.getPaymentDescription(request.paymentMethod, request.amount, request.currency),
+                paymentMethod = request.paymentMethod,
+                createdAt = com.google.firebase.Timestamp.now()
+            )
+            val transactionDocRef = transactionsCollection.document()
+            transaction.set(transactionDocRef, transactionRecord)
+        }.await()
+
+        Result.success("Withdrawal request created successfully")
     } catch (e: Exception) {
         Result.failure(e)
     }
 
-    override fun getWithdrawalRequests(userId: String) = callbackFlow {
-        val subscription = pendingWithdrawalsCollection
+    override fun getWithdrawalRequests(userId: String): Flow<List<WithdrawalRequest>> = callbackFlow {
+        val listener = pendingWithdrawalsCollection
             .whereEqualTo("userId", userId)
+            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     close(error)
                     return@addSnapshotListener
                 }
+                
                 val requests = snapshot?.documents?.mapNotNull { doc ->
-                    try {
-                        val userDetailsMap = doc.get("userDetails") as? Map<*, *>
-                        WithdrawalRequest(
-                            requestId = doc.id,
-                            userId = doc.getString("userId") ?: "",
-                            amount = doc.getDouble("amount") ?: 0.0,
-                            currency = doc.getString("currency") ?: "INR",
-                            upiId = doc.getString("upiId") ?: "",
-                            status = doc.getString("status") ?: "PENDING",
-                            rejectionReason = doc.getString("rejectionReason"),
-                            createdAt = doc.getLong("createdAt") ?: 0L,
-                            updatedAt = doc.getLong("updatedAt"),
-                            verifiedAt = doc.getLong("verifiedAt"),
-                            userDetails = UserDetails(
-                                email = userDetailsMap?.get("email") as? String ?: "",
-                                name = userDetailsMap?.get("name") as? String ?: "",
-                                username = userDetailsMap?.get("username") as? String ?: "",
-                                userId = userDetailsMap?.get("userId") as? String ?: ""
-                            )
-                        )
-                    } catch (e: Exception) {
-                        null
-                    }
+                    doc.toObject(WithdrawalRequest::class.java)?.copy(requestId = doc.id)
                 } ?: emptyList()
                 trySend(requests)
             }
-        awaitClose { subscription.remove() }
+        
+        awaitClose { listener.remove() }
     }
 } 

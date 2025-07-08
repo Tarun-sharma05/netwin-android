@@ -11,4 +11,5 @@ interface UserRepository {
     fun getUserFlow(userId: String): Flow<User?>
     suspend fun updateUser(user: User): Result<User>
     suspend fun updateUserField(userId: String, field: String, value: Any): Result<Unit>
+    suspend fun getUserByUsername(username: String): Boolean
 } 

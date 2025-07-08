@@ -1,6 +1,7 @@
 package com.cehpoint.netwin.presentation.viewmodels
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cehpoint.netwin.data.model.KycDocument
@@ -40,6 +41,7 @@ class KycViewModel @Inject constructor(
                     kycDocument = kycDoc,
                     status = kycDoc?.status?.name ?: ""
                 )
+                Log.d("KycViewModel", "KYC Document updated: ${kycDoc?.status?.name}")
             }
         }
     }
@@ -75,5 +77,13 @@ class KycViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    fun resetImages() {
+        _uiState.value = _uiState.value.copy(
+            frontImageUrl = "",
+            backImageUrl = "",
+            selfieUrl = ""
+        )
     }
 } 

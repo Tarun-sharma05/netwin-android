@@ -36,6 +36,9 @@ sealed class ScreenRoutes {
     // KYC Screen
     @Serializable
     data object KycScreen
+
+    @Serializable
+    data object ProfileSetupScreen
 }
 
 

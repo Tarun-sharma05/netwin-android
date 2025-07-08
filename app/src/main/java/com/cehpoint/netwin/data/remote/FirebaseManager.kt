@@ -15,14 +15,16 @@ import com.google.firebase.firestore.Query
 
 @Singleton
 class FirebaseManager @Inject constructor(
-    internal val firestore: FirebaseFirestore
+    internal val firebaseAuth: FirebaseAuth,
+    internal val firestore: FirebaseFirestore,
+    internal val storage: FirebaseStorage
 ) {
     companion object {
         private const val TAG = "FirebaseManager"
         
         // Firestore Collections
         object Collections {
-            const val TOURNAMENTS = "sampletournaments"
+            const val TOURNAMENTS = "tournaments"
             const val USERS = "users"
             const val MATCHES = "matches"
             const val TRANSACTIONS = "transactions"
@@ -30,9 +32,8 @@ class FirebaseManager @Inject constructor(
         }
     }
 
-    // Make these properties internal so they can be accessed within the same module
-    internal val auth = FirebaseAuth.getInstance()
-    internal val storage = FirebaseStorage.getInstance()
+    // Use the injected instances instead of creating new ones
+    internal val auth = firebaseAuth
 
     init {
         // Initialize Firebase App Check

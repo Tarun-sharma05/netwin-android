@@ -5,12 +5,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -52,8 +54,10 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreenUI(navController: NavController, viewModel: AuthViewModel = hiltViewModel(), firebaseManager: FirebaseManager) {
-    var email by remember { mutableStateOf("") }
+    var userInput by remember { mutableStateOf("") } // email or phone
     var password by remember { mutableStateOf("") }
+    var otp by remember { mutableStateOf("") }
+    var otpSent by remember { mutableStateOf(false) }
     val isLoading by viewModel.isLoading.collectAsState()
     val isAuthenticated by viewModel.isAuthenticated.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
@@ -61,15 +65,12 @@ fun LoginScreenUI(navController: NavController, viewModel: AuthViewModel = hiltV
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    LaunchedEffect(isAuthenticated, currentUser) {
-        if (isAuthenticated && currentUser != null) {
-            navController.navigate(ScreenRoutes.TournamentsScreen) {
-                popUpTo("login") { inclusive = true }
-            }
-        } else if (isAuthenticated && currentUser == null) {
-            viewModel.signOut()
-        }
-    }
+    // Helper to detect if input is email or phone
+    val isEmail = android.util.Patterns.EMAIL_ADDRESS.matcher(userInput).matches()
+    val isPhone = userInput.trim().let { it.isNotEmpty() && it.all { c -> c.isDigit() } && it.length >= 8 }
+
+    // Remove conflicting navigation logic - let NavGraph handle all navigation
+    // The NavGraph will automatically handle navigation based on auth state
 
     LaunchedEffect(error) {
         if (error != null) {
@@ -107,12 +108,15 @@ fun LoginScreenUI(navController: NavController, viewModel: AuthViewModel = hiltV
                 Spacer(modifier = Modifier.height(32.dp))
 
                 OutlinedTextField(
-                    value = email,
+                    value = userInput,
                     onValueChange = {
-                        email = it
+                        userInput = it
                         viewModel.clearError()
+                        otpSent = false
+                        password = ""
+                        otp = ""
                     },
-                    label = { Text("Email", color = Color.White) },
+                    label = { Text("Email or Phone Number", color = Color.White) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
@@ -122,12 +126,13 @@ fun LoginScreenUI(navController: NavController, viewModel: AuthViewModel = hiltV
                         cursorColor = Color.Cyan
                     ),
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
+                        keyboardType = KeyboardType.Text,
                         imeAction = ImeAction.Next
                     ),
                     enabled = !isLoading
                 )
 
+                if (isEmail) {
                 OutlinedTextField(
                     value = password,
                     onValueChange = {
@@ -150,10 +155,9 @@ fun LoginScreenUI(navController: NavController, viewModel: AuthViewModel = hiltV
                     ),
                     enabled = !isLoading
                 )
-
                 Button(
                     onClick = {
-                        viewModel.signIn(email, password)
+                            viewModel.signIn(userInput, password)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -161,7 +165,7 @@ fun LoginScreenUI(navController: NavController, viewModel: AuthViewModel = hiltV
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Cyan
                     ),
-                    enabled = !isLoading && email.isNotEmpty() && password.isNotEmpty()
+                        enabled = !isLoading && userInput.isNotEmpty() && password.isNotEmpty()
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -170,6 +174,75 @@ fun LoginScreenUI(navController: NavController, viewModel: AuthViewModel = hiltV
                         )
                     } else {
                         Text("Sign In", color = Color.Black)
+                        }
+                    }
+                } else if (isPhone) {
+                    if (!otpSent) {
+                        Button(
+                            onClick = {
+                                viewModel.sendOtpForLogin(userInput, navController)
+                                otpSent = true
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Cyan
+                            ),
+                            enabled = !isLoading && userInput.isNotEmpty()
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = Color.White
+                                )
+                            } else {
+                                Text("Send OTP", color = Color.Black)
+                            }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = otp,
+                            onValueChange = {
+                                otp = it
+                                viewModel.clearError()
+                            },
+                            label = { Text("OTP", color = Color.White) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color.Cyan,
+                                unfocusedBorderColor = Color.Gray,
+                                cursorColor = Color.Cyan
+                            ),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            enabled = !isLoading
+                        )
+                        Button(
+                            onClick = {
+                                viewModel.verifyOtpForLogin(otp, navController)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Cyan
+                            ),
+                            enabled = !isLoading && otp.isNotEmpty()
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = Color.White
+                                )
+                            } else {
+                                Text("Verify OTP", color = Color.Black)
+                            }
+                        }
                     }
                 }
 

@@ -20,6 +20,14 @@ data class PendingDeposit(
     val rejectionReason: String? = null,
     val fee: Double? = null,
     val netAmount: Double? = null,
+    // Nigerian payment specific fields
+    val paymentMethod: PaymentMethod = PaymentMethod.UPI,
+    val bankName: String? = null,
+    val accountNumber: String? = null,
+    val accountName: String? = null,
+    val transactionReference: String? = null,
+    val paymentProvider: String? = null, // FLUTTERWAVE, PAYSTACK, etc.
+    val userCountry: String = "IN", // IN for India, NG for Nigeria
     @ServerTimestamp
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null

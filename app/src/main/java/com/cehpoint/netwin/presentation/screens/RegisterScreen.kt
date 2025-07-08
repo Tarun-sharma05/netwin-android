@@ -1,29 +1,61 @@
 package com.cehpoint.netwin.presentation.screens
 
-import android.util.Log
+import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.cehpoint.netwin.presentation.navigation.Screen
+import com.cehpoint.netwin.R
 import com.cehpoint.netwin.presentation.navigation.ScreenRoutes
 import com.cehpoint.netwin.presentation.viewmodels.AuthViewModel
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
 @Composable
@@ -31,188 +63,430 @@ fun RegisterScreenUI(
     navController: NavController,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
+    var selectedOption by remember { mutableStateOf<RegistrationOption?>(null) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var validationError by remember { mutableStateOf<String?>(null) }
+    var phone by remember { mutableStateOf("") }
+    var otp by remember { mutableStateOf("") }
+    var otpSent by remember { mutableStateOf(false) }
+    var termsAccepted by remember { mutableStateOf(false) }
+    
+    val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val isAuthenticated by viewModel.isAuthenticated.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val currentUser by viewModel.currentUser.collectAsState()
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    LaunchedEffect(isAuthenticated) {
-        if (isAuthenticated) {
+    // Handle authentication success
+    LaunchedEffect(isAuthenticated, currentUser) {
+        if (isAuthenticated && currentUser != null) {
+            // Navigate to tournaments screen - profile completeness will be checked there
             navController.navigate(ScreenRoutes.TournamentsScreen) {
                 popUpTo("register") { inclusive = true }
             }
         }
     }
 
-    LaunchedEffect(error, validationError) {
-        val message = error ?: validationError
-        if (message != null) {
+    // Show error messages
+    LaunchedEffect(error) {
+        error?.let { errorMsg ->
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(message)
+                Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
             }
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Color.Black
-    ) { paddingValues ->
-        Box(
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFF121212))
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Logo
+        Image(
+            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+            contentDescription = "NetWin Logo",
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
+                .size(120.dp)
+                .shadow(16.dp, shape = CircleShape)
+        )
+        
+        Spacer(Modifier.height(32.dp))
+        
+        Text(
+            "Create Your Account",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 28.sp
+        )
+        
+        Spacer(Modifier.height(8.dp))
+        
+        Text(
+            "Choose your preferred registration method",
+            color = Color.Gray,
+            fontSize = 16.sp
+        )
+        
+        Spacer(Modifier.height(32.dp))
+
+        // Registration Options
+        if (selectedOption == null) {
+            // Show option selection
+            RegistrationOptionCard(
+                title = "Email & Password",
+                subtitle = "Sign up with email and password",
+                icon = Icons.Default.Email,
+                onClick = { selectedOption = RegistrationOption.EMAIL_PASSWORD }
+            )
+            
+            Spacer(Modifier.height(16.dp))
+            
+            RegistrationOptionCard(
+                title = "Phone Number",
+                subtitle = "Sign up with phone number and OTP",
+                icon = Icons.Default.Phone,
+                onClick = { selectedOption = RegistrationOption.PHONE_OTP }
+            )
+        } else {
+            // Show selected registration form
+            when (selectedOption) {
+                RegistrationOption.EMAIL_PASSWORD -> {
+                    EmailPasswordRegistration(
+                        email = email,
+                        password = password,
+                        confirmPassword = confirmPassword,
+                        termsAccepted = termsAccepted,
+                        isLoading = isLoading,
+                        onEmailChange = { email = it },
+                        onPasswordChange = { password = it },
+                        onConfirmPasswordChange = { confirmPassword = it },
+                        onTermsAccepted = { termsAccepted = it },
+                        onBack = { selectedOption = null },
+                        onSubmit = {
+                            if (password == confirmPassword && termsAccepted) {
+                                viewModel.signUp(email, password)
+                            }
+                        }
+                    )
+                }
+                RegistrationOption.PHONE_OTP -> {
+                    PhoneOtpRegistration(
+                        phone = phone,
+                        otp = otp,
+                        otpSent = otpSent,
+                        isLoading = isLoading,
+                        onPhoneChange = { phone = it },
+                        onOtpChange = { otp = it },
+                        onSendOtp = { 
+                            viewModel.sendOtpForLogin(phone, navController)
+                            otpSent = true
+                        },
+                        onVerifyOtp = { viewModel.verifyOtpForLogin(otp, navController) },
+                        onBack = { selectedOption = null }
+                    )
+                }
+                null -> {
+                    // This should never happen since we check for null above
+                }
+            }
+
+        }
+        
+        Spacer(Modifier.height(24.dp))
+        
+        // Login link
+        TextButton(
+            onClick = { navController.navigate(ScreenRoutes.LoginScreen) }
         ) {
-            Column(
+            Text(
+                "Already have an account? Sign In",
+                color = Color.Cyan
+            )
+        }
+    }
+}
+
+enum class RegistrationOption {
+    EMAIL_PASSWORD,
+    PHONE_OTP
+}
+
+@Composable
+fun RegistrationOptionCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFF00BCD4),
+                modifier = Modifier.size(32.dp)
+            )
+            
+            Spacer(Modifier.width(16.dp))
+            
+            Column {
                 Text(
-                    text = "Create Account",
-                    color = Color.Cyan,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold
+                    text = title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Text(
+                    text = subtitle,
+                    color = Color.Gray,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EmailPasswordRegistration(
+    email: String,
+    password: String,
+    confirmPassword: String,
+    termsAccepted: Boolean,
+    isLoading: Boolean,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onConfirmPasswordChange: (String) -> Unit,
+    onTermsAccepted: (Boolean) -> Unit,
+    onBack: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            "Sign up with Email",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 24.sp
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
 
                 OutlinedTextField(
                     value = email,
-                    onValueChange = {
-                        email = it
-                        viewModel.clearError()
-                        validationError = null
-                    },
+            onValueChange = onEmailChange,
                     label = { Text("Email", color = Color.White) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
                         focusedBorderColor = Color.Cyan,
-                        unfocusedBorderColor = Color.Gray,
-                        cursorColor = Color.Cyan
-                    ),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Next
+                unfocusedBorderColor = Color.Gray
                     ),
                     enabled = !isLoading
                 )
+        
+        Spacer(Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = password,
-                    onValueChange = {
-                        password = it
-                        viewModel.clearError()
-                        validationError = null
-                    },
+            onValueChange = onPasswordChange,
                     label = { Text("Password", color = Color.White) },
+            visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
                         focusedBorderColor = Color.Cyan,
-                        unfocusedBorderColor = Color.Gray,
-                        cursorColor = Color.Cyan
-                    ),
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Next
+                unfocusedBorderColor = Color.Gray
                     ),
                     enabled = !isLoading
                 )
+        
+        Spacer(Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = confirmPassword,
-                    onValueChange = {
-                        confirmPassword = it
-                        viewModel.clearError()
-                        validationError = null
-                    },
+            onValueChange = onConfirmPasswordChange,
                     label = { Text("Confirm Password", color = Color.White) },
+            visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
                         focusedBorderColor = Color.Cyan,
-                        unfocusedBorderColor = Color.Gray,
-                        cursorColor = Color.Cyan
-                    ),
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done
+                unfocusedBorderColor = Color.Gray
                     ),
                     enabled = !isLoading
                 )
 
-                Button(
-                    onClick = {
-                        validationError = null
-                        viewModel.clearError()
-                        when {
-                            email.isBlank() -> {
-                                validationError = "Please enter your email"
-                                return@Button
-                            }
-                            !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() -> {
-                                validationError = "Please enter a valid email address"
-                                return@Button
-                            }
-                            password.isBlank() -> {
-                                validationError = "Please enter a password"
-                                return@Button
-                            }
-                            password.length < 6 -> {
-                                validationError = "Password must be at least 6 characters"
-                                return@Button
-                            }
-                            confirmPassword.isBlank() -> {
-                                validationError = "Please confirm your password"
-                                return@Button
-                            }
-                            password != confirmPassword -> {
-                                validationError = "Passwords do not match"
-                                return@Button
-                            }
-                        }
-                        viewModel.signUp(email, password)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Cyan
-                    ),
-                    enabled = !isLoading
+        Spacer(Modifier.height(16.dp))
+        
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = termsAccepted,
+                onCheckedChange = onTermsAccepted,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = Color.Cyan,
+                    uncheckedColor = Color.Gray
+                )
+            )
+            Text(
+                "I agree to Terms & Privacy Policy",
+                color = Color.White,
+                fontSize = 14.sp
+            )
+        }
+        
+        Spacer(Modifier.height(24.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OutlinedButton(
+                onClick = onBack,
+                enabled = !isLoading
+            ) {
+                Text("Back", color = Color.White)
+            }
+            
+            Button(
+                onClick = onSubmit,
+                enabled = !isLoading && email.isNotBlank() && password.isNotBlank() && 
+                         password == confirmPassword && termsAccepted,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Cyan)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White
+                    )
+                } else {
+                    Text("Sign Up", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PhoneOtpRegistration(
+    phone: String,
+    otp: String,
+    otpSent: Boolean,
+    isLoading: Boolean,
+    onPhoneChange: (String) -> Unit,
+    onOtpChange: (String) -> Unit,
+    onSendOtp: () -> Unit,
+    onVerifyOtp: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            "Sign up with Phone",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 24.sp
+        )
+        
+        Spacer(Modifier.height(24.dp))
+        
+        OutlinedTextField(
+            value = phone,
+            onValueChange = onPhoneChange,
+            label = { Text("Phone Number", color = Color.White) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = Color.Cyan,
+                unfocusedBorderColor = Color.Gray
+            ),
+            enabled = !isLoading && !otpSent
+        )
+        
+        if (!otpSent) {
+            Spacer(Modifier.height(16.dp))
+            
+            Button(
+                onClick = onSendOtp,
+                enabled = !isLoading && phone.isNotBlank() && phone.length >= 10,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Cyan)
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                             color = Color.White
                         )
                     } else {
-                        Text("Sign Up", color = Color.Black)
+                    Text("Send OTP", color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }
-
-                TextButton(
-                    onClick = { navController.navigateUp() },
+        } else {
+            Spacer(Modifier.height(16.dp))
+            
+            OutlinedTextField(
+                value = otp,
+                onValueChange = onOtpChange,
+                label = { Text("Enter OTP", color = Color.White) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Color.Cyan,
+                    unfocusedBorderColor = Color.Gray
+                ),
                     enabled = !isLoading
-                ) {
-                    Text("Already have an account? Sign In", color = Color.Cyan)
+            )
+            
+            Spacer(Modifier.height(16.dp))
+            
+            Button(
+                onClick = onVerifyOtp,
+                enabled = !isLoading && otp.isNotBlank() && otp.length == 6,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Cyan)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White
+                    )
+                } else {
+                    Text("Verify OTP", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+        
+        Spacer(Modifier.height(24.dp))
+        
+        OutlinedButton(
+            onClick = onBack,
+            enabled = !isLoading
+        ) {
+            Text("Back", color = Color.White)
         }
     }
 } 

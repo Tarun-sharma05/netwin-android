@@ -11,7 +11,15 @@ data class WithdrawalRequest(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long? = null,
     val verifiedAt: Long? = null,
-    val userDetails: UserDetails = UserDetails()
+    val userDetails: UserDetails = UserDetails(),
+    // Nigerian payment specific fields
+    val paymentMethod: PaymentMethod = PaymentMethod.UPI,
+    val bankName: String? = null,
+    val accountNumber: String? = null,
+    val accountName: String? = null,
+    val userCountry: String = "IN", // IN for India, NG for Nigeria
+    val bankCode: String? = null, // For Nigerian banks
+    val recipientCode: String? = null // For Paystack transfers
 )
 
 data class UserDetails(

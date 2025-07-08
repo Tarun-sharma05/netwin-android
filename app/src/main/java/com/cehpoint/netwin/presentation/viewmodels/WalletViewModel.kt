@@ -87,9 +87,11 @@ class WalletViewModel @Inject constructor(
                 .collect { _pendingDeposits.value = it }
         }
         viewModelScope.launch {
-            repository.getWalletBalance(userId)
-                .catch { e -> _error.value = e.message }
-                .collect { _withdrawableBalance.value = it }
+            if (repository is com.cehpoint.netwin.data.repository.WalletRepositoryImpl) {
+                repository.getWithdrawableBalance(userId)
+                    .catch { e -> _error.value = e.message }
+                    .collect { _withdrawableBalance.value = it }
+            }
         }
         viewModelScope.launch {
             if (repository is com.cehpoint.netwin.data.repository.WalletRepositoryImpl) {

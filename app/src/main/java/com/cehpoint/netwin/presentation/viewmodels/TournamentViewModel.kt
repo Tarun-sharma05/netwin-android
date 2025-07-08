@@ -2,6 +2,7 @@ package com.cehpoint.netwin.presentation.viewmodels
 
 import android.util.Log
 import androidx.lifecycle.viewModelScope
+import com.cehpoint.netwin.data.model.KycStatus
 import com.cehpoint.netwin.data.remote.FirebaseManager
 import com.cehpoint.netwin.domain.model.Tournament
 import com.cehpoint.netwin.domain.repository.TournamentRepository
@@ -105,7 +106,8 @@ class TournamentViewModel @Inject constructor(
                     viewModelScope.launch {
                         val userResult = userRepository.getUser(currentUser.uid)
                         val user = userResult.getOrNull()
-                        if (user?.kycStatus == "verified") {
+                        if (user?.kycStatus == "${KycStatus.VERIFIED}") {
+                           Log.d("TournamentViewModel", "User is verified, proceeding with registration ${user.kycStatus}")
                             registerForTournament(
                                 tournamentId = event.tournament.id,
                                 userId = currentUser.uid,

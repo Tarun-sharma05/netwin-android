@@ -61,6 +61,18 @@ class TournamentRepositoryImpl @Inject constructor(
                 val tournaments = snapshot?.documents?.mapNotNull { doc ->
                     try {
                         val data = doc.data ?: return@mapNotNull null
+                        Log.d("TournamentRepository", "Raw document data for ${doc.id}: $data")
+                        
+                        // Debug timestamp conversion
+                        val startTimestamp = data["startDate"] as? Timestamp
+                        val endTimestamp = data["endDate"] as? Timestamp
+                        if (startTimestamp != null && endTimestamp != null) {
+                            Log.d("TournamentRepository", "Timestamp debug for ${doc.id}:")
+                            Log.d("TournamentRepository", "  Start timestamp: $startTimestamp (${startTimestamp.toDate()})")
+                            Log.d("TournamentRepository", "  End timestamp: $endTimestamp (${endTimestamp.toDate()})")
+                            Log.d("TournamentRepository", "  Start as long: ${startTimestamp.toDate().time}")
+                            Log.d("TournamentRepository", "  End as long: ${endTimestamp.toDate().time}")
+                        }
                         val tournament = Tournament.fromFirestore(
                             id = doc.id,
                             name = data["name"] as? String ?: "",
@@ -226,7 +238,7 @@ class TournamentRepositoryImpl @Inject constructor(
     ): Result<Unit> = try {
         val tournamentRef = firebaseManager.firestore.collection("tournaments").document(tournamentId)
         val userWalletRef = firebaseManager.firestore.collection("wallets").document(userId)
-        val registrationRef = tournamentRef.collection("registrations").document(userId)
+        val registrationRef = firebaseManager.firestore.collection("tournament_registrations").document("${tournamentId}_${userId}")
         val userTransactionsRef = firebaseManager.firestore.collection("users").document(userId).collection("transactions")
         val userRef = firebaseManager.firestore.collection("users").document(userId)
 
@@ -237,8 +249,40 @@ class TournamentRepositoryImpl @Inject constructor(
             val registrationSnapshot = transaction.get(registrationRef)
             val userSnapshot = transaction.get(userRef)
 
-            val tournament = tournamentSnapshot.toObject(com.cehpoint.netwin.data.model.Tournament::class.java)
-                ?: throw Exception("Tournament not found. It might have been deleted.")
+            // Use manual deserialization for tournament to handle Timestamp -> Long
+            val data = tournamentSnapshot.data
+            val tournament = if (data != null) {
+                Tournament.fromFirestore(
+                    id = tournamentSnapshot.id,
+                    name = data["name"] as? String ?: "",
+                    description = data["description"] as? String ?: "",
+                    startDate = data["startDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                    endDate = data["endDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                    maxPlayers = (data["maxPlayers"] as? Number)?.toInt() ?: 0,
+                    currentPlayers = (data["currentPlayers"] as? Number)?.toInt() ?: 0,
+                    entryFee = (data["entryFee"] as? Number)?.toInt() ?: 0,
+                    perKillPrize = (data["perKillPrize"] as? Number)?.toInt() ?: 0,
+                    prizePool = (data["prizePool"] as? Number)?.toInt() ?: 0,
+                    status = (data["status"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                    isFeatured = data["isFeatured"] as? Boolean ?: false,
+                    gameId = data["gameId"] as? String ?: "",
+                    createdBy = data["createdBy"] as? String ?: "",
+                    createdAt = data["createdAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                    imageUrl = data["imageUrl"] as? String ?: "",
+                    updatedAt = data["updatedAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+                    rulesUrl = data["rulesUrl"] as? String ?: "",
+                    platform = data["platform"] as? String ?: "",
+                    entryType = data["entryType"] as? String ?: "",
+                    isActive = data["isActive"] as? Boolean ?: true,
+                    mode = data["mode"] as? String,
+                    map = data["map"] as? String
+                )
+            } else {
+                null
+            }
+            if (tournament == null) {
+                throw Exception("Tournament not found. It might have been deleted.")
+            }
             val wallet = walletSnapshot.toObject(com.cehpoint.netwin.data.model.Wallet::class.java)
                 ?: throw Exception("User wallet not found.")
             val user = userSnapshot.toObject(com.cehpoint.netwin.data.model.User::class.java)
@@ -251,9 +295,13 @@ class TournamentRepositoryImpl @Inject constructor(
             if (tournament.currentPlayers >= tournament.maxPlayers) {
                 throw Exception("Sorry, this tournament is already full.")
             }
-            if (wallet.balance < tournament.entryFee) {
+            
+            // Check total balance (bonus + withdrawable)
+            val totalBalance = wallet.bonusBalance + wallet.withdrawableBalance
+            if (totalBalance < tournament.entryFee) {
                 throw Exception("Insufficient balance. Please add funds to your wallet.")
             }
+            
             // KYC check (if required)
             if (tournament.entryFee > 0 && user.kycStatus != "verified") {
                 throw Exception("KYC verification required to register for this tournament.")
@@ -273,14 +321,28 @@ class TournamentRepositoryImpl @Inject constructor(
             }
 
             // 3. All checks passed, perform the writes
-            val newBalance = wallet.balance - tournament.entryFee
+            val entryFee = tournament.entryFee.toDouble()
+            
+            // Deduct from bonus balance first, then from withdrawable balance
+            val bonusUsed = minOf(wallet.bonusBalance, entryFee)
+            val withdrawableUsed = entryFee - bonusUsed
+            
+            val newBonusBalance = wallet.bonusBalance - bonusUsed
+            val newWithdrawableBalance = wallet.withdrawableBalance - withdrawableUsed
+            val newTotalBalance = newBonusBalance + newWithdrawableBalance
             val newPlayerCount = tournament.currentPlayers + 1
 
-            // Update wallet
-            transaction.update(userWalletRef, "balance", newBalance)
+            // Update wallet with new balances
+            transaction.update(userWalletRef, "bonusBalance", newBonusBalance)
+            transaction.update(userWalletRef, "withdrawableBalance", newWithdrawableBalance)
+            transaction.update(userWalletRef, "balance", newTotalBalance)
+            
+            // Update user's walletBalance for display
+            transaction.update(userRef, "walletBalance", newTotalBalance)
+            
             // Update tournament player count
             transaction.update(tournamentRef, "currentPlayers", newPlayerCount)
-            // Create registration document
+            // Create registration document in top-level collection
             val registrationRecord = com.cehpoint.netwin.data.model.TournamentRegistration(
                 tournamentId = tournamentId,
                 userId = userId,
@@ -312,10 +374,8 @@ class TournamentRepositoryImpl @Inject constructor(
 
     override suspend fun isUserRegisteredForTournament(tournamentId: String, userId: String): Boolean = try {
         val registrationRef = firebaseManager.firestore
-            .collection("tournaments")
-            .document(tournamentId)
-            .collection("registrations")
-            .document(userId)
+            .collection("tournament_registrations")
+            .document("${tournamentId}_${userId}")
 
         registrationRef.get().await().exists()
     } catch (e: Exception) {

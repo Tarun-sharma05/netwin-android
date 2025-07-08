@@ -59,12 +59,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -77,22 +80,53 @@ import com.cehpoint.netwin.domain.model.TournamentMode
 import com.cehpoint.netwin.domain.model.TournamentStatus
 import com.cehpoint.netwin.presentation.components.statusBarPadding
 import com.cehpoint.netwin.presentation.navigation.Screen
+import com.cehpoint.netwin.presentation.navigation.ScreenRoutes
 import com.cehpoint.netwin.presentation.viewmodels.TournamentEvent
 import com.cehpoint.netwin.presentation.viewmodels.TournamentFilter
 import com.cehpoint.netwin.presentation.viewmodels.TournamentState
 import com.cehpoint.netwin.presentation.viewmodels.TournamentViewModel
+import com.cehpoint.netwin.utils.NGNTransactionUtils
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewModel = hiltViewModel()) {
-    val scrollBehaviour = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
+    Log.d("TournamentsScreen", "=== TournamentsScreenUI COMPOSABLE STARTED ===")
+
     val state by viewModel.state.collectAsState()
     val registrationState by viewModel.registrationState.collectAsState()
     val walletBalance by viewModel.walletBalance.collectAsState()
     val userName by viewModel.userName.collectAsState()
     val context = LocalContext.current
+    
+    // Get user country and currency
+    var userCountry by remember { mutableStateOf("India") }
+    var userCurrency by remember { mutableStateOf("INR") }
+    
+    LaunchedEffect(Unit) {
+        // Get current user to determine country
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        currentUser?.let { user ->
+            try {
+                // Get user country from Firestore or use default
+                val userDoc = FirebaseFirestore.getInstance()
+                    .collection("users")
+                    .document(user.uid)
+                    .get()
+                    .await()
+                
+                userCountry = userDoc.getString("country") ?: "India"
+                userCurrency = if (userCountry.equals("Nigeria", ignoreCase = true) || userCountry.equals("NG", ignoreCase = true)) "NGN" else "INR"
+            } catch (e: Exception) {
+                Log.e("TournamentsScreen", "Error getting user country: ${e.message}")
+                userCountry = "India"
+                userCurrency = "INR"
+            }
+        }
+    }
 
     val tournamentState = state as? TournamentState ?: TournamentState()
     val isLoading = tournamentState.isLoading
@@ -119,14 +153,14 @@ fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewM
     }
 
     LaunchedEffect(Unit) {
-        Log.d("TournamentsScreen", "LaunchedEffect triggered - Loading tournaments")
+        Log.d("TournamentsScreen", "=== LaunchedEffect TRIGGERED ===")
+        Log.d("TournamentsScreen", "LaunchedEffect - Loading tournaments")
         viewModel.handleEvent(TournamentEvent.LoadTournaments)
+        Log.d("TournamentsScreen", "LaunchedEffect - Tournament load event sent")
     }
 
     Scaffold(
-//        modifier = Modifier.fillMaxSize()
-//            .nestedScroll(scrollBehaviour.nestedScrollConnection),
-        topBar = { TournamentsTopBar(walletBalance = walletBalance.toInt()) },
+        topBar = { TournamentsTopBar(walletBalance = walletBalance.toInt(), currency = userCurrency) },
         // Uncomment and implement if you have a bottom nav bar
         // bottomBar = { BottomNavBar(navController) }
     ) { paddingValues ->
@@ -135,22 +169,22 @@ fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewM
                 .fillMaxSize()
                 .background(Color(0xFF121212))
                 .padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 80.dp, top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(
+                bottom = 48.dp,
+                top = 8.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item { Spacer(Modifier.height(16.dp)) }
-            item { WelcomeCard(userName = userName, onJoinClick = { /* TODO: Handle join click */ }) }
-            item { Spacer(Modifier.height(25.dp)) }
+            item { WelcomeCard(userName = userName) }
             item {
                 Text(
                     text = "Available Tournaments",
                     color = Color.White,
-                    fontSize = 20.sp,
+                    fontSize = MaterialTheme.typography.headlineMedium.fontSize,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
-            item { Spacer(Modifier.height(14.dp)) }
             item {
                 TournamentsFilters(
                     selectedFilter = tournamentState.selectedFilter.name,
@@ -159,35 +193,34 @@ fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewM
                     }
                 )
             }
-            item { Spacer(Modifier.height(8.dp)) }
-            // Loading/Error
-                if (isLoading) {
+            if (isLoading) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp),
+                            .height(160.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(color = Color(0xFF00BCD4))
                     }
-                    }
-                } else if (error != null) {
+                }
+            } else if (error != null) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp),
+                            .height(120.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = error,
                             color = Color.Red,
+                            fontSize = MaterialTheme.typography.bodyMedium.fontSize,
                             modifier = Modifier.padding(16.dp)
                         )
                     }
-                    }
-                } else {
+                }
+            } else {
                 items(tournaments) { tournament ->
                     TournamentCard(
                         tournament = tournament,
@@ -196,7 +229,8 @@ fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewM
                             Log.d("TournamentsScreen", "Navigating to tournament details: ${tournament.id}")
                             navController.navigate(Screen.TournamentDetails.createRoute(tournament.id))
                         },
-                        navController = navController
+                        navController = navController,
+                        currency = userCurrency
                     )
                 }
             }
@@ -205,7 +239,7 @@ fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewM
 }
 
 @Composable
-fun TournamentsTopBar(walletBalance: Int) {
+fun TournamentsTopBar(walletBalance: Int, currency: String) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -219,7 +253,6 @@ fun TournamentsTopBar(walletBalance: Int) {
             "NETWIN",
             style = MaterialTheme.typography.titleLarge,
             color = Color(0xFF00BCD4), // Cyan color
-            fontSize = 24.sp,
             fontWeight = FontWeight.Bold
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -229,73 +262,69 @@ fun TournamentsTopBar(walletBalance: Int) {
                 tint = Color(0xFF00BCD4), // Cyan color
                 modifier = Modifier.size(24.dp)
             )
-            Text(
-                "₹$walletBalance",
-                modifier = Modifier.padding(start = 4.dp),
-                color = Color(0xFF00BCD4), // Cyan color
-                fontSize = 16.sp
-            )
+                            Text(
+                    NGNTransactionUtils.formatAmount(walletBalance.toDouble(), currency),
+                    modifier = Modifier.padding(start = 4.dp),
+                    color = Color(0xFF00BCD4), // Cyan color
+                    fontSize = MaterialTheme.typography.bodyMedium.fontSize
+                )
         }
     }
 }
 
 @Composable
-fun WelcomeCard(
-    userName: String,
-    onJoinClick: () -> Unit = {}
-) {
+fun WelcomeCard(userName: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(180.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.DarkGray)
+            .height(160.dp)
+            .clip(RoundedCornerShape(12.dp))
     ) {
-        // Background image (replace with your own image in res/drawable)
+        // Background image for welcome card
         Image(
-            painter = painterResource(id = R.drawable.esport), // <-- your image here
+            painter = painterResource(id = R.drawable.esport),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize()
+            modifier = Modifier.fillMaxSize()
         )
-        // Optional: overlay for better text contrast
+        
+        // Overlay for better text contrast
         Box(
             Modifier
                 .matchParentSize()
-                .background(Color.Black.copy(alpha = 0.3f))
+                .background(Color.Black.copy(alpha = 0.4f))
         )
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(20.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.Center
         ) {
-            Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Default.EmojiEvents,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Welcome Back, $userName!",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Ready to compete? Join a tournament and showcase your skills!",
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 14.sp
+                    fontSize = MaterialTheme.typography.headlineMedium.fontSize
                 )
             }
-            Button(
-                onClick = onJoinClick,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Cyan),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .height(40.dp)
-
-            ) {
-                Icon(Icons.Outlined.EmojiEvents, contentDescription = null, tint = Color.Black)
-                Spacer(Modifier.width(8.dp))
-                Text("Join Tournament", color = Color.Black, fontWeight = FontWeight.Bold)
-            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Ready to compete? Join a tournament and showcase your skills!",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = MaterialTheme.typography.bodyMedium.fontSize
+            )
         }
     }
 }
@@ -309,7 +338,7 @@ fun TournamentsFilters(
         Modifier
             .fillMaxWidth()
             .background(Color(0xFF121212)) // Explicit dark background
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 16.dp)
             .horizontalScroll(rememberScrollState())
     ) {
         FilterChip(
@@ -318,14 +347,14 @@ fun TournamentsFilters(
             selected = selectedFilter == "Filter",
             onClick = { onFilterChange("Filter") }
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(12.dp))
         FilterChip(
             text = "All Games",
             icon = Icons.Default.EmojiEvents,
             selected = selectedFilter == "All Games",
             onClick = { onFilterChange("All Games") }
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(12.dp))
         FilterChip(
             text = "All Maps",
             icon = Icons.Default.Map,
@@ -334,13 +363,13 @@ fun TournamentsFilters(
         )
     }
 
-    Spacer(Modifier.width(8.dp))
+    Spacer(Modifier.width(12.dp))
 
     Row(
         Modifier
             .fillMaxWidth()
             .background(Color(0xFF121212)) // Explicit dark background
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 16.dp)
             .horizontalScroll(rememberScrollState())
     ) {
         FilterChip(
@@ -365,7 +394,7 @@ fun FilterChip(
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected) Color(0xFF00BCD4) else Color(0xFF2A2A2A) // Cyan or dark gray
         ),
-        modifier = Modifier.height(36.dp),
+        modifier = Modifier.height(40.dp),
         contentPadding = PaddingValues(horizontal = 12.dp)
     ) {
         Icon(
@@ -391,7 +420,7 @@ fun TournamentList(
 ) {
     Log.d("TournamentsScreen", "TournamentList composable called with ${tournaments.size} tournaments")
     Log.d("TournamentsScreen", "TournamentList - First tournament: ${tournaments.firstOrNull()?.name}")
-    
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -402,6 +431,7 @@ fun TournamentList(
             Text(
                 text = "No tournaments available",
                 color = Color.White, // Explicit white text
+                fontSize = MaterialTheme.typography.bodyMedium.fontSize,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .padding(16.dp)
@@ -420,10 +450,14 @@ fun TournamentList(
                         tournament = tournament,
                         viewModel = viewModel(),
                         onCardClick = {
-                            Log.d("TournamentsScreen", "Navigating to tournament details: ${tournament.id}")
+                            Log.d(
+                                "TournamentsScreen",
+                                "Navigating to tournament details: ${tournament.id}"
+                            )
                             navController.navigate(Screen.TournamentDetails.createRoute(tournament.id))
                         },
-                        navController = navController
+                        navController = navController,
+                        currency = TODO()
                     )
                 }
             }
@@ -436,7 +470,8 @@ fun TournamentCard(
     tournament: Tournament,
     viewModel: TournamentViewModel,
     onCardClick: () -> Unit,
-    navController: NavController
+    navController: NavController,
+    currency: String
 ) {
     val registrationStatus by viewModel.registrationStatus.collectAsState()
     val showKycRequiredDialog by viewModel.showKycRequiredDialog.collectAsState()
@@ -452,36 +487,54 @@ fun TournamentCard(
     var remainingTime by remember { mutableStateOf("") }
 
     LaunchedEffect(tournament.startDate, tournament.endDate) {
-        while (true) {
-            val currentTime = System.currentTimeMillis()
-            remainingTime = when (tournament.computedStatus) {
-                TournamentStatus.UPCOMING -> {
-            val timeDiff = tournament.startDate - currentTime
-                    val hours = timeDiff / (60 * 60 * 1000)
-                    val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
-                    val seconds = (timeDiff % (60 * 1000)) / 1000
-                    when {
-                        hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
-                        minutes > 0 -> String.format("%02d:%02d", minutes, seconds)
-                        else -> String.format("%02d seconds", seconds)
+        // Only update timer for upcoming and ongoing tournaments
+        if (tournament.computedStatus == TournamentStatus.UPCOMING ||
+            tournament.computedStatus == TournamentStatus.ONGOING) {
+            while (true) {
+                val currentTime = System.currentTimeMillis()
+                remainingTime = when (tournament.computedStatus) {
+                    TournamentStatus.UPCOMING -> {
+                        val timeDiff = tournament.startDate - currentTime
+                        if (timeDiff <= 0) {
+                            "Starting..."
+                        } else {
+                            val hours = timeDiff / (60 * 60 * 1000)
+                            val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
+                            val seconds = (timeDiff % (60 * 1000)) / 1000
+                            when {
+                                hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                                minutes > 0 -> String.format("%02d:%02d", minutes, seconds)
+                                else -> String.format("%02d seconds", seconds)
+                            }
+                        }
                     }
+                    TournamentStatus.ONGOING -> {
+                        val timeDiff = tournament.endDate - currentTime
+                        if (timeDiff <= 0) {
+                            "Ending..."
+                        } else {
+                            val hours = timeDiff / (60 * 60 * 1000)
+                            val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
+                            val seconds = (timeDiff % (60 * 1000)) / 1000
+                            when {
+                                hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                                minutes > 0 -> String.format("%02d:%02d", minutes, seconds)
+                                else -> String.format("%02d seconds", seconds)
+                            }
+                        }
+                    }
+                    else -> break
                 }
+                delay(1000)
+            }
+        } else {
+            // Set static text for non-timer tournaments
+            remainingTime = when (tournament.computedStatus) {
                 TournamentStatus.STARTS_SOON -> "Starts Soon"
                 TournamentStatus.ROOM_OPEN -> "Room Open"
-                TournamentStatus.ONGOING -> {
-                    val timeDiff = tournament.endDate - currentTime
-                    val hours = timeDiff / (60 * 60 * 1000)
-                    val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
-                    val seconds = (timeDiff % (60 * 1000)) / 1000
-                    when {
-                        hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
-                        minutes > 0 -> String.format("%02d:%02d", minutes, seconds)
-                        else -> String.format("%02d seconds", seconds)
-                    }
-                }
                 TournamentStatus.COMPLETED -> "Completed"
+                else -> ""
             }
-            delay(1000)
         }
     }
 
@@ -493,7 +546,7 @@ fun TournamentCard(
             confirmButton = {
                 Button(onClick = {
                     viewModel.clearKycDialog()
-                    navController.navigate(com.cehpoint.netwin.presentation.navigation.ScreenRoutes.KycScreen)
+                    navController.navigate(ScreenRoutes.KycScreen)
                 }) {
                     Text("Go to KYC")
                 }
@@ -512,44 +565,102 @@ fun TournamentCard(
             .padding(horizontal = 16.dp)
             .clickable(onClick = onCardClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)) // Dark surface color
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column {
             Box(
                 modifier = Modifier
-                    .height(150.dp)
+                    .height(140.dp)
                     .fillMaxWidth()
             ) {
-                AsyncImage(
-                    model = tournament.imageUrl,
-                    contentDescription = "Tournament Poster",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                // Background placeholder for when no image is available
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF1E1E1E),
+                                    Color(0xFF2A2A2A)
+                                )
+                            )
+                        )
                 )
-                // You can add status badges here on top of the image
-                    TournamentStatusBadge(
-                        status = tournament.computedStatus,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(8.dp)
+
+                // Only show AsyncImage if tournament has an image URL
+                if (!tournament.imageUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = tournament.imageUrl,
+                        contentDescription = "Tournament Poster",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
-                    ModeChip(
-                        tournament.mode,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp))
-//                    Text(
-//                        text = remainingTime,
-//                        color = Color.White,
-//                        fontSize = 14.sp,
-//                        fontWeight = FontWeight.Bold
-//                    )
+                }
+
+                // Show tournament info overlay when no image is available
+                if (tournament.imageUrl.isNullOrEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                tint = Color(0xFF00BCD4),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = tournament.name,
+                                color = Color.White,
+                                fontSize = MaterialTheme.typography.titleMedium.fontSize,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = tournament.map,
+                                color = Color.Gray,
+                                fontSize = MaterialTheme.typography.bodySmall.fontSize,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                // You can add status badges here on top of the image
+                TournamentStatusBadge(
+                    status = tournament.computedStatus,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(12.dp)
+                )
+                ModeChip(
+                    tournament.mode,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                )
+                Text(
+                    text = remainingTime,
+                    color = Color.White,
+                    fontSize = MaterialTheme.typography.bodySmall.fontSize,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(12.dp)
+                )
 
             }
 
             Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -558,11 +669,11 @@ fun TournamentCard(
                     Text(
                         text = tournament.name,
                         color = Color.White,
-                        fontSize = 18.sp,
+                        fontSize = MaterialTheme.typography.titleMedium.fontSize,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis
                     )
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -572,25 +683,35 @@ fun TournamentCard(
                             tint = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                    Text(
+                        Text(
                             text = tournament.map,
-                        color = Color.White,
-                        fontSize = 14.sp
-                    )
+                            color = Color.White,
+                            fontSize = MaterialTheme.typography.bodyMedium.fontSize
+                        )
+                    }
                 }
-                }
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    InfoChip("Prize Pool", "₹${tournament.prizePool}")
-                    InfoChip("Per Kill", "₹${tournament.perKillPrize}")
-                    InfoChip("Entry Fee", "₹${tournament.entryFee}")
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
+
+                                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                InfoChip("Prize Pool", NGNTransactionUtils.formatAmount(tournament.prizePool.toDouble(), currency))
+                                InfoChip("Per Kill", NGNTransactionUtils.formatAmount(tournament.perKillPrize.toDouble(), currency))
+                                InfoChip("Entry Fee", NGNTransactionUtils.formatAmount(tournament.entryFee.toDouble(), currency))
+                            }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = remainingTime,
+                    color = Color.White,
+                    fontSize = MaterialTheme.typography.bodyMedium.fontSize,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 // Dynamic button based on tournament status
                 when (tournament.computedStatus) {
                     TournamentStatus.UPCOMING -> {
@@ -601,7 +722,7 @@ fun TournamentCard(
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
-                            Text("Join Now", color = Color.Black)
+                            Text("Join Now", color = Color.Black, fontSize = MaterialTheme.typography.bodyMedium.fontSize)
                         }
                     }
                     // Add cases for other statuses like ONGOING, COMPLETED if needed
@@ -674,7 +795,7 @@ fun ModeChip(mode: TournamentMode, modifier: Modifier = Modifier) {
 
 @Composable
 private fun StatItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     value: String,
     label: String
 ) {
@@ -710,13 +831,13 @@ fun InfoChip(label: String, value: String) {
         Text(
             text = label,
             color = Color.Gray,
-            fontSize = 12.sp
+            fontSize = MaterialTheme.typography.bodySmall.fontSize
         )
         Text(
             text = value,
             color = Color.White,
-            fontSize = 16.sp,
+            fontSize = MaterialTheme.typography.bodyMedium.fontSize,
             fontWeight = FontWeight.Bold
         )
     }
-} 
+}

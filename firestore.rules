@@ -1,0 +1,162 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isAdminPanel() {
+      return request.auth == null && 'X-Firebase-AppCheck' in request.headers;
+    }
+
+    // Admin config
+    match /admin_config/{docId} {
+      allow read: if isAdminPanel() || isAdmin() || isAuthenticated();
+      allow write: if isAdminPanel() || isAdmin();
+    }
+    // Users
+    match /users/{userId} {
+      allow read: if isAuthenticated() || isAdminPanel();
+      allow write: if (isAuthenticated() && isOwner(userId)) || isAdminPanel();
+    }
+    // Tournaments
+    match /tournaments/{tournamentId} {
+      allow read: if true;
+      allow write: if (request.auth != null && isAdmin()) || isAdminPanel();
+      allow update: if request.auth != null || isAdminPanel();
+    }
+    // Matches
+    match /matches/{matchId} {
+      allow read: if request.auth != null || isAdminPanel();
+      allow write: if request.auth != null || isAdminPanel();
+    }
+    // Transactions
+    match /transactions/{transactionId} {
+      allow read, write: if request.auth != null || isAdminPanel();
+    }
+    // Tournament registrations
+    match /tournament_registrations/{registrationId} {
+      allow read, write: if request.auth != null || isAdminPanel();
+    }
+    // User matches
+    match /user_matches/{matchId} {
+      allow read: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin() || isAdminPanel();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin() || isAdminPanel();
+      allow delete: if isAdmin() || isAdminPanel();
+    }
+    // Leaderboards
+    match /leaderboards/{leaderboardId} {
+      allow read: if true;
+      allow write: if (request.auth != null && isAdmin()) || isAdminPanel();
+    }
+    // Support tickets
+    match /support_tickets/{ticketId} {
+      allow create: if true; // Temporarily allow all creates for debugging
+      allow read, update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin() || isAdminPanel();
+      allow delete: if isAdmin() || isAdminPanel();
+    }
+    // Test collection
+    match /test_collection/{docId} {
+      allow read, write: if request.auth != null || isAdminPanel();
+    }
+    // Match results
+    match /match_results/{resultId} {
+      allow read: if isAuthenticated() || isAdminPanel();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin() || isAdminPanel();
+      allow delete: if isAdmin() || isAdminPanel();
+    }
+    // Wallets
+    match /wallets/{userId} {
+      allow read: if (isAuthenticated() && (isOwner(userId) || isAdmin())) || isAdminPanel();
+      allow create: if (isAuthenticated() && isOwner(userId)) || isAdminPanel();
+      allow update: if ((isAuthenticated() && (isOwner(userId) || isAdmin())) || isAdminPanel()) && (request.resource.data.balance >= 0 && request.resource.data.currency == resource.data.currency);
+    }
+    // Wallet transactions
+    match /wallet_transactions/{transactionId} {
+      allow read: if (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin())) || isAdminPanel();
+      allow create: if ((isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.type in ['deposit', 'withdrawal', 'prize', 'entry_fee'] && request.resource.data.amount > 0 && request.resource.data.status in ['pending', 'processing', 'completed', 'failed'])) || isAdminPanel();
+      allow update: if ((isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && (request.resource.data.userId == resource.data.userId && request.resource.data.amount == resource.data.amount && request.resource.data.type == resource.data.type)) || isAdminPanel());
+    }
+    // Payment intents
+    match /paymentIntents/{intentId} {
+      allow read: if (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin())) || isAdminPanel();
+      allow create: if ((isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.amount > 0 && request.resource.data.status in ['pending', 'processing', 'completed', 'failed'])) || isAdminPanel();
+      allow update: if ((isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && (request.resource.data.userId == resource.data.userId && request.resource.data.amount == resource.data.amount)) || isAdminPanel());
+    }
+    // Squad members
+    match /squad_members/{memberId} {
+      allow read, write: if request.auth != null || isAdminPanel();
+    }
+    // KYC documents
+    match /kycDocuments/{documentId} {
+      allow read, write: if request.auth != null || isAdminPanel();
+    }
+    match /kyc_documents/{documentId} {
+      allow read, write: if request.auth != null || isAdminPanel();
+    }
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read, write: if request.auth != null || isAdminPanel();
+    }
+    // Tournament participants
+    match /tournament_participants/{participantId} {
+      allow read: if request.auth != null || isAdminPanel();
+      allow write: if request.auth != null || isAdminPanel();
+    }
+    // Pending deposits
+    match /pending_deposits/{depositId} {
+      allow read: if (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin())) || isAdminPanel();
+      allow create: if ((isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.amount > 0 && request.resource.data.status == 'PENDING')) || isAdminPanel();
+      allow update: if ((isAuthenticated() && isAdmin()) || isAdminPanel());
+    }
+    // Pending withdrawals
+    match /pending_withdrawals/{withdrawalId} {
+      allow read: if (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin())) || isAdminPanel();
+      allow create: if ((isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.amount > 0 && request.resource.data.status == 'PENDING')) || isAdminPanel();
+      allow update: if ((isAuthenticated() && isAdmin()) || isAdminPanel());
+    }
+    // Payment links
+    match /paymentLinks/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdminPanel() || isAdmin();
+    }
+    // Wallet config
+    match /wallet_config/{docId} {
+      allow read: if isAuthenticated() || isAdminPanel();
+      allow write: if isAdmin() || isAdminPanel();
+    }
+    // Announcements
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin() || isAdminPanel();
+    }
+  }
+}
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // KYC uploads
+    match /kyc/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    // Screenshot uploads
+    match /screenshots/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    // Admin panel access
+    match /{allPaths=**} {
+      allow read, write: if 'X-Firebase-AppCheck' in request.headers;
+    }
+  }
+} 
