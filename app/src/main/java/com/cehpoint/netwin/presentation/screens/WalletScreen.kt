@@ -168,7 +168,6 @@ fun WalletScreen(
                             Log.d("WalletScreen", "Wallet document does not exist, creating one...")
                             // Create wallet document if it doesn't exist
                             val walletData = mapOf(
-                                "userId" to userId,
                                 "balance" to 0.0,
                                 "withdrawableBalance" to 0.0,
                                 "bonusBalance" to 0.0
