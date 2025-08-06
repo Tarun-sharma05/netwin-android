@@ -12,6 +12,7 @@ import com.google.firebase.FirebaseException
 import com.google.firebase.auth.*
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
@@ -41,6 +44,50 @@ class AuthViewModel @Inject constructor(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val  splashShowFlow = MutableStateFlow(false)
+    val isSplashShow = splashShowFlow.asStateFlow()
+
+
+
+    fun splashScreen() {
+        Log.d("AuthViewModel", "=== SPLASH SCREEN STARTED ===")
+        viewModelScope.launch {
+            val delayJob = async { delay(3000) }
+            val fetchJob = async {
+                val currentUser = firebaseAuth.currentUser
+                if (currentUser != null) {
+                    try {
+                        withTimeoutOrNull(5000) {  // 5 second timeout
+                            val userDoc = FirebaseFirestore.getInstance()
+                                .collection("users")
+                                .document(currentUser.uid)
+                                .get()
+                                .await()
+                            if (userDoc.exists()) {
+                                val userData = userDoc.data
+                                userData?.let { data ->
+                                    val nameToStore = data["username"] as? String
+                                        ?: data["displayName"] as? String
+                                        ?: ""
+                                    dataStoreManager.setUserName(nameToStore)
+                                    Log.d("AuthViewModel", "Splash screen - User name stored in DataStore: $nameToStore")
+                                }
+                            }
+                        } ?: Log.w("Splash", "User data fetch timed out")
+                    } catch (e: Exception) {
+                        Log.w("AuthViewModel", "Splash screen - Failed to pre-fetch user data", e)
+                    }
+                }
+            }
+            delayJob.await()
+            fetchJob.await()
+            Log.d("AuthViewModel", "Splash screen - 3 second delay and fetch completed, setting splashShowFlow to true")
+            splashShowFlow.value = true
+            Log.d("AuthViewModel", "=== SPLASH SCREEN COMPLETED ===")
+        }
+    }
+
 
     // Add authentication state initialization
     private val _isAuthStateInitialized = MutableStateFlow(false)
@@ -110,6 +157,9 @@ class AuthViewModel @Inject constructor(
         Log.d("AuthViewModel", "Current user phone before init: ${firebaseAuth.currentUser?.phoneNumber}")
         Log.d("AuthViewModel", "Current user is email verified before init: ${firebaseAuth.currentUser?.isEmailVerified}")
         
+        // Start splash screen timer
+        splashScreen()
+        
         // Debug Firebase Auth state
         debugAuthState()
         
@@ -125,7 +175,7 @@ class AuthViewModel @Inject constructor(
             Log.d("AuthViewModel", "User display name: ${auth.currentUser?.displayName}")
             Log.d("AuthViewModel", "User phone: ${auth.currentUser?.phoneNumber}")
             Log.d("AuthViewModel", "User is email verified: ${auth.currentUser?.isEmailVerified}")
-            
+
             _currentUser.value = auth.currentUser
             _isAuthenticated.value = auth.currentUser != null
             _isAuthStateInitialized.value = true
@@ -155,8 +205,9 @@ class AuthViewModel @Inject constructor(
                 if (currentUser != null) {
                     Log.d("AuthViewModel", "initializeAuthState - User found, setting authenticated state")
                     _currentUser.value = currentUser
-                    _isAuthenticated.value = true
+                        _isAuthenticated.value = true
                     Log.d("AuthViewModel", "initializeAuthState - User authenticated: ${currentUser.uid}")
+                    
                     // Try to refresh token in background, but don't force sign out on failure
                     try {
                         Log.d("AuthViewModel", "initializeAuthState - Attempting token validation")
@@ -184,10 +235,8 @@ class AuthViewModel @Inject constructor(
                 Log.d("AuthViewModel", "initializeAuthState - Final state - currentUser: ${_currentUser.value}")
                 Log.d("AuthViewModel", "=== initializeAuthState COMPLETED ===")
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "initializeAuthState - Error initializing auth state", e)
-                _isAuthenticated.value = false
+                Log.e("AuthViewModel", "initializeAuthState - Error during initialization", e)
                 _isAuthStateInitialized.value = true
-                Log.d("AuthViewModel", "=== initializeAuthState COMPLETED WITH ERROR ===")
             }
         }
     }
@@ -257,7 +306,7 @@ class AuthViewModel @Inject constructor(
                 _currentUser.value = null
                 _isAuthenticated.value = false
                 _error.value = null
-                
+
                 Log.d("AuthViewModel", "Sign out - User signed out and data cleared from DataStore")
                 
             } catch (e: Exception) {
@@ -531,12 +580,12 @@ class AuthViewModel @Inject constructor(
                 if (currentUser != null) {
                     Log.d("AuthViewModel", "Recheck - User found, updating state")
                     _currentUser.value = currentUser
-                    _isAuthenticated.value = true
+                                    _isAuthenticated.value = true
                 } else {
                     Log.d("AuthViewModel", "Recheck - No user found")
                     _currentUser.value = null
-                    _isAuthenticated.value = false
-                }
+                                    _isAuthenticated.value = false
+                                }
                 
                 _isAuthStateInitialized.value = true
                 Log.d("AuthViewModel", "Recheck - Final state - isAuthenticated: ${_isAuthenticated.value}")

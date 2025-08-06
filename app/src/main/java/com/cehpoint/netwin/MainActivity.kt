@@ -1,33 +1,46 @@
 package com.cehpoint.netwin
 
-import android.content.Context
 import android.os.Bundle
 import android.util.Log
-import android.view.Display
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Modifier
+import androidx.compose.material3.Scaffold
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import com.cehpoint.netwin.data.remote.FirebaseManager
 import com.cehpoint.netwin.presentation.navigation.NavGraph
 import com.cehpoint.netwin.ui.theme.NetWinTheme
 import dagger.hilt.android.AndroidEntryPoint
-
 import javax.inject.Inject
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cehpoint.netwin.presentation.viewmodels.AuthViewModel
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject
     lateinit var firebaseManager: FirebaseManager
 
+    private val viewModel by viewModels<AuthViewModel>()
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen().apply {
+            setKeepOnScreenCondition {
+                val shouldKeepSplash = !viewModel.isSplashShow.value
+                Log.d("MainActivity", "Splash screen condition check: shouldKeepSplash = $shouldKeepSplash, isSplashShow = ${viewModel.isSplashShow.value}")
+                shouldKeepSplash
+            }
+        }
+//        val splashScreen = installSplashScreen()
+//        // TEMP: Keep splash for 2 seconds to test visibility
+//        var keepSplash = true
+//        splashScreen.setKeepOnScreenCondition { keepSplash }
+//        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+//            keepSplash = false
+//        }, 2000)
         Log.d("MainActivity", "=== MainActivity onCreate STARTED ===")
         Log.d("MainActivity", "MainActivity - savedInstanceState: $savedInstanceState")
         Log.d("MainActivity", "MainActivity - Process ID: ${android.os.Process.myPid()}")
@@ -47,10 +60,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             Log.d("MainActivity", "MainActivity - setContent started")
             NetWinTheme {
-                Surface(
+                Scaffold(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
+                    //color = MaterialTheme.colorScheme.background,
+                    containerColor = MaterialTheme.colorScheme.background
+                ) { innerPaddin ->
                     NavGraph(firebaseManager = firebaseManager)
                 }
             }

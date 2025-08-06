@@ -2,12 +2,15 @@ package com.cehpoint.netwin.presentation.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -19,6 +22,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
+import androidx.navigation.toRoute
 import com.cehpoint.netwin.data.remote.FirebaseManager
 import com.cehpoint.netwin.presentation.screens.*
 import com.cehpoint.netwin.presentation.viewmodels.AuthViewModel
@@ -132,40 +136,121 @@ fun NavGraph(firebaseManager: FirebaseManager) {
                          containerColor = Color.Black,
                          tonalElevation = 0.dp,
                          windowInsets = NavigationBarDefaults.windowInsets,
-                         modifier = Modifier.background(Color.Black)
+                         modifier = Modifier
+                             .background(Color.Black)
+                             .height(70.dp)
                      ) {
                          items.forEachIndexed { index, bottomNavigationItem ->
                             val isSelected = selectedItemIndex == index
+
+
                              NavigationBarItem(
                                  selected = isSelected,
                                  onClick = {
-                                    if (selectedItemIndex != index) {
-                                        selectedItemIndex = index
-                                        when (index) {
+                                     if (selectedItemIndex != index) {
+                                         selectedItemIndex = index
+                                         // Your navigation logic here
+                                         when (index) {
                                             0 -> navController.navigate(ScreenRoutes.TournamentsScreen)
                                             1 -> navController.navigate(ScreenRoutes.WalletScreen)
                                             2 -> navController.navigate(ScreenRoutes.LeaderboardScreen)
                                             3 -> navController.navigate(ScreenRoutes.AlertsScreen)
                                             4 -> navController.navigate(ScreenRoutes.MoreScreen)
-                                        }
+                                       }
+
                                      }
                                  },
+//                                 icon = {
+//                                     Column(
+//                                         horizontalAlignment = Alignment.CenterHorizontally,
+//                                         verticalArrangement = Arrangement.Center
+//                                     ) {
+//                                         if (isSelected) {
+//                                             Spacer(modifier = Modifier.height(0.dp))
+//                                             Box(
+//                                                 modifier = Modifier
+//                                                     .width(60.dp)  // Set width to icon size or a bit wider
+//                                                     .height(30.dp)  // Bar thickness
+//                                                     .padding(bottom = 26.dp)
+//                                                     .background(
+//                                                         color = Color.Cyan,
+//                                                         shape = RoundedCornerShape(2.dp) // Rounded ends
+//                                                     )
+//                                             )
+////                                             Spacer(modifier = Modifier.height(26.dp))
+//                                         } else {
+//                                             Spacer(modifier = Modifier.height(8.dp)) // Keep all icons aligned
+//                                         }
+//                                         Icon(
+//                                             imageVector = bottomNavigationItem.icon,
+//                                             contentDescription = bottomNavigationItem.name,
+//                                             tint = if (isSelected) Color.Cyan else Color.White,
+//                                             modifier = Modifier.size(24.dp)
+//                                         )
+//                                     }
+//                                 },
+
+
                                  icon = {
-                                     Icon(
-                                         imageVector = bottomNavigationItem.icon,
-                                         contentDescription = bottomNavigationItem.name,
-                                         tint = if (isSelected) Color.Cyan else Color.White,
-                                         modifier = Modifier.size(20.dp)
-                                     )
+                                     Box(
+                                         modifier = Modifier
+                                             .fillMaxWidth()
+                                             .height(70.dp) // same height as NavigationBar
+                                     ) {
+                                         if (isSelected) {
+                                             Box(
+                                                 modifier = Modifier
+                                                     .fillMaxWidth()
+                                                     .height(40.dp) // Reaches from top down to icon
+                                                     .align(Alignment.TopCenter)
+                                                     .background(
+                                                         brush = Brush.verticalGradient(
+                                                             colors = listOf(
+                                                                 Color.Cyan.copy(alpha = 0.5f),
+                                                                 Color.Cyan.copy(alpha = 0.2f),
+                                                                 Color.Transparent
+                                                             )
+                                                         )
+                                                     )
+                                             )
+
+
+                                             Box(
+                                                 modifier = Modifier
+                                                     .align(Alignment.TopCenter)
+//                                                     .width(40.dp)
+                                                     .fillMaxWidth()
+                                                     .height(4.dp)
+                                                     .background(
+                                                         color = Color.Cyan,
+                                                         shape = RoundedCornerShape(2.dp)
+                                                     )
+                                             )
+                                         }
+
+                                         Icon(
+                                             imageVector = bottomNavigationItem.icon,
+                                             contentDescription = bottomNavigationItem.name,
+                                             tint = if (isSelected) Color.Cyan else Color.White,
+                                             modifier = Modifier
+                                                 .align(Alignment.Center)
+                                                 .size(24.dp)
+                                         )
+                                     }
                                  },
-                                 label = {
-                                     Text(
-                                         text = bottomNavigationItem.name,
-                                         color = if (isSelected) Color.Cyan else Color.White,
-                                         fontSize = 11.sp
-                                     )
-                                 }
+
+                                 alwaysShowLabel = false, // Hide labels for a cleaner look
+
+                                 colors = NavigationBarItemDefaults.colors(
+                                     indicatorColor = Color.Transparent
+                                 ) // 👈 removes the gray background
                              )
+
+
+
+
+
+
                          }
                      }
                  }
@@ -259,6 +344,22 @@ fun NavGraph(firebaseManager: FirebaseManager) {
                                  )
                              }
                          }
+
+
+                         // Add this nested navigation inside your HomeNavGraph
+                         navigation<SubNavigation.RegistrationNavGraph>(
+                             startDestination = TournamentRegistration("", 1)
+                         ) {
+                             composable<TournamentRegistration> { backStackEntry ->
+                                 val args = backStackEntry.toRoute<TournamentRegistration>()
+                                 RegistrationFlowScreen(
+                                     tournamentId = args.tournamentId,
+                                     stepIndex = args.stepIndex,
+                                     navController = navController
+                                 )
+                             }
+                         }
+
                      }
                  }
             }

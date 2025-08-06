@@ -15,7 +15,7 @@ android {
 
     defaultConfig {
         applicationId = "com.cehpoint.netwin"
-        minSdk = 27
+        minSdk = 28
         targetSdkVersion(rootProject.extra["defaultTargetSdkVersion"] as Int)
         versionCode = 1
         versionName = "1.0"
@@ -73,19 +73,20 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
+    implementation("androidx.compose.material:material:1.8.3")
+    implementation("androidx.compose.material3:material3:1.3.2")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose")
     implementation("androidx.navigation:navigation-compose")
     
     // Navigation Serialization
-    implementation("androidx.navigation:navigation-compose:2.9.0")
-    implementation("androidx.navigation:navigation-runtime-ktx:2.9.0")
-    implementation("androidx.navigation:navigation-common-ktx:2.9.0")
-    implementation("androidx.navigation:navigation-ui-ktx:2.9.0")
+    implementation("androidx.navigation:navigation-compose:2.9.1")
+    implementation("androidx.navigation:navigation-runtime-ktx:2.9.1")
+    implementation("androidx.navigation:navigation-common-ktx:2.9.1")
+    implementation("androidx.navigation:navigation-ui-ktx:2.9.1")
     
     // Kotlin Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     
     // Hilt
     implementation("com.google.dagger:hilt-android:2.56.2")
@@ -109,7 +110,7 @@ dependencies {
 //    implementation("com.google.firebase:firebase-analytics")
 //
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
     
     
@@ -130,6 +131,9 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
 
+    // Hilt testing
+    androidTestImplementation("com.google.dagger:hilt-android-testing:2.56.2")
+    kspAndroidTest("com.google.dagger:hilt-compiler:2.56.2")
     // CameraX core library using the camera2 implementation
     val camerax_version = "1.5.0-alpha01"
     // The following line is optional, as the core library is included indirectly by camera-camera2
@@ -140,4 +144,13 @@ dependencies {
     // If you want to additionally use the CameraX View class
     implementation("androidx.camera:camera-view:${camerax_version}")
     testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.4")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:6.0.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
+    implementation("com.google.accompanist:accompanist-swiperefresh:0.36.0")
+
 }

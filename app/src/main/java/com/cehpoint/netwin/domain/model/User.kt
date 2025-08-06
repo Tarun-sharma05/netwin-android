@@ -15,10 +15,9 @@ data class User(
     val walletBalance: Double = 0.0,
     val profilePictureUrl: String = "", // maps to photoURL
     val role: String = "user",
-    @ServerTimestamp
-    val createdAt: Timestamp? = null,
-    val updatedAt: Timestamp? = null,
-    val lastLoginAt: Timestamp? = null,
+    val createdAt: Long? = null,
+    val updatedAt: Long? = null,
+    val lastLoginAt: Long? = null,
     val loginCount: Int = 0,
     val phoneNumber: String = "",
     val gameId: String = "",
@@ -29,7 +28,7 @@ data class User(
     val totalEarnings: Double = 0.0,
     val tournamentsJoined: Int = 0,
     val kycStatus: String = "pending",
-    val kycVerifiedAt: Timestamp? = null,
+    val kycVerifiedAt: Long? = null,
     val kycDocumentType: String = "",
     val kycDocumentNumber: String = "",
     val kycRejectedReason: String = "",
@@ -40,4 +39,4 @@ data class User(
     val preferredLanguage: String = "en",
     val deviceType: String = "Android",
     val appVersion: String = ""
-) 
+)

@@ -2,6 +2,7 @@ package com.cehpoint.netwin.utils
 
 import com.cehpoint.netwin.data.model.PaymentMethod
 import com.cehpoint.netwin.data.model.TransactionType
+import com.cehpoint.netwin.data.model.Wallet
 
 object NGNTransactionUtils {
     
@@ -70,18 +71,50 @@ object NGNTransactionUtils {
     }
     
     fun formatAmount(amount: Double, currency: String): String {
-        return when (currency) {
+        return when (currency.uppercase()) {
             "NGN" -> formatNGNAmount(amount)
             "INR" -> formatINRAmount(amount)
+            "USD" -> "$${String.format("%,.2f", amount)}"
+            "EUR" -> "€${String.format("%,.2f", amount)}"
+            "GBP" -> "£${String.format("%,.2f", amount)}"
             else -> "$currency ${String.format("%,.2f", amount)}"
         }
     }
     
     fun getCurrencySymbol(currency: String): String {
-        return when (currency) {
+        return when (currency.uppercase()) {
             "NGN" -> "₦"
             "INR" -> "₹"
+            "USD" -> "$"
+            "EUR" -> "€"
+            "GBP" -> "£"
             else -> currency
+        }
+    }
+    
+    fun validateCurrency(currency: String): Boolean {
+        return Wallet.SUPPORTED_CURRENCIES.containsKey(currency.uppercase())
+    }
+    
+    fun validateAmountForCurrency(amount: Double, currency: String): Boolean {
+        return when (currency.uppercase()) {
+            "NGN" -> amount >= 100.0 // Minimum NGN 100
+            "INR" -> amount >= 10.0  // Minimum INR 10
+            "USD" -> amount >= 1.0   // Minimum USD 1
+            "EUR" -> amount >= 1.0   // Minimum EUR 1
+            "GBP" -> amount >= 1.0   // Minimum GBP 1
+            else -> amount > 0.0
+        }
+    }
+    
+    fun getMinimumAmountForCurrency(currency: String): Double {
+        return when (currency.uppercase()) {
+            "NGN" -> 100.0
+            "INR" -> 10.0
+            "USD" -> 1.0
+            "EUR" -> 1.0
+            "GBP" -> 1.0
+            else -> 1.0
         }
     }
     
@@ -125,10 +158,26 @@ object NGNTransactionUtils {
     }
     
     fun getPaymentDescription(paymentMethod: PaymentMethod, amount: Double, currency: String): String {
-        return when (currency) {
+        return when (currency.uppercase()) {
             "NGN" -> getNigerianPaymentDescription(paymentMethod, amount)
             "INR" -> getIndianPaymentDescription(paymentMethod, amount)
             else -> "Payment (${formatAmount(amount, currency)})"
+        }
+    }
+    
+    fun convertCurrency(amount: Double, fromCurrency: String, toCurrency: String, exchangeRate: Double = 1.0): Double {
+        if (fromCurrency.uppercase() == toCurrency.uppercase()) {
+            return amount
+        }
+        return amount * exchangeRate
+    }
+    
+    fun getCurrencyDisplayInfo(currency: String): String {
+        val currencyInfo = Wallet.getCurrencyInfo(currency)
+        return if (currencyInfo != null) {
+            "${currencyInfo.symbol} ${currencyInfo.name}"
+        } else {
+            currency
         }
     }
 } 

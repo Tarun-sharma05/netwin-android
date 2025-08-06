@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CheckCircle
@@ -33,7 +34,6 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.PinDrop
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,8 +47,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -78,9 +76,12 @@ import com.cehpoint.netwin.R
 import com.cehpoint.netwin.domain.model.Tournament
 import com.cehpoint.netwin.domain.model.TournamentMode
 import com.cehpoint.netwin.domain.model.TournamentStatus
+import com.cehpoint.netwin.presentation.components.PullRefreshComponent
+import com.cehpoint.netwin.presentation.components.TournamentCapacityIndicator
 import com.cehpoint.netwin.presentation.components.statusBarPadding
 import com.cehpoint.netwin.presentation.navigation.Screen
 import com.cehpoint.netwin.presentation.navigation.ScreenRoutes
+import com.cehpoint.netwin.presentation.navigation.TournamentRegistration
 import com.cehpoint.netwin.presentation.viewmodels.TournamentEvent
 import com.cehpoint.netwin.presentation.viewmodels.TournamentFilter
 import com.cehpoint.netwin.presentation.viewmodels.TournamentState
@@ -88,10 +89,10 @@ import com.cehpoint.netwin.presentation.viewmodels.TournamentViewModel
 import com.cehpoint.netwin.utils.NGNTransactionUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
 
-@OptIn(ExperimentalMaterial3Api::class)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewModel = hiltViewModel()) {
     Log.d("TournamentsScreen", "=== TournamentsScreenUI COMPOSABLE STARTED ===")
@@ -100,6 +101,9 @@ fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewM
     val registrationState by viewModel.registrationState.collectAsState()
     val walletBalance by viewModel.walletBalance.collectAsState()
     val userName by viewModel.userName.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val refreshError by viewModel.refreshError.collectAsState()
+    val refreshSuccess by viewModel.refreshSuccess.collectAsState()
     val context = LocalContext.current
     
     // Get user country and currency
@@ -160,78 +164,105 @@ fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewM
     }
 
     Scaffold(
-        topBar = { TournamentsTopBar(walletBalance = walletBalance.toInt(), currency = userCurrency) },
+        topBar = { 
+            TournamentsTopBar(
+                walletBalance = walletBalance.toInt(), 
+                currency = userCurrency,
+                isRefreshing = false // Don't show refresh indicator in top bar
+            ) 
+        },
         // Uncomment and implement if you have a bottom nav bar
         // bottomBar = { BottomNavBar(navController) }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF121212))
-                .padding(paddingValues),
-            contentPadding = PaddingValues(
-                bottom = 48.dp,
-                top = 8.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+
+        PullRefreshComponent(
+            isRefreshing = isRefreshing,
+            refreshError = refreshError,
+            refreshSuccess = refreshSuccess,
+            onRefresh = {
+                viewModel.handleEvent(TournamentEvent.RefreshTournaments(force = true))
+            },
+            onClearRefreshSuccess = {
+                viewModel.clearRefreshSuccess()
+            },
+            onClearRefreshError = {
+                viewModel.clearRefreshError()
+            }
         ) {
-            item { WelcomeCard(userName = userName) }
-            item {
-                Text(
-                    text = "Available Tournaments",
-                    color = Color.White,
-                    fontSize = MaterialTheme.typography.headlineMedium.fontSize,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-            item {
-                TournamentsFilters(
-                    selectedFilter = tournamentState.selectedFilter.name,
-                    onFilterChange = { filter ->
-                        viewModel.handleEvent(TournamentEvent.FilterTournaments(TournamentFilter.valueOf(filter)))
-                    }
-                )
-            }
-            if (isLoading) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF121212))
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(
+                    bottom = 48.dp,
+                    top = 8.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item { WelcomeCard(userName = userName) }
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(160.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = Color(0xFF00BCD4))
-                    }
+                    Text(
+                        text = "Available Tournaments",
+                        color = Color.White,
+                        fontSize = MaterialTheme.typography.headlineMedium.fontSize,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                 }
-            } else if (error != null) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = error,
-                            color = Color.Red,
-                            fontSize = MaterialTheme.typography.bodyMedium.fontSize,
-                            modifier = Modifier.padding(16.dp)
+                    TournamentsFilters(
+                        selectedFilter = tournamentState.selectedFilter.name,
+                        onFilterChange = { filter ->
+                            viewModel.handleEvent(TournamentEvent.FilterTournaments(TournamentFilter.valueOf(filter)))
+                        },
+                        isRefreshing = isRefreshing,
+                        onRefresh = {
+                            viewModel.handleEvent(TournamentEvent.RefreshTournaments(force = true))
+                        }
+                    )
+                }
+
+                if (isLoading && !isRefreshing) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = Color(0xFF00BCD4))
+                        }
+                    }
+                } else if (error != null) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = error,
+                                color = Color.Red,
+                                fontSize = MaterialTheme.typography.bodyMedium.fontSize,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                } else {
+                    items(tournaments) { tournament ->
+                        TournamentCard(
+                            tournament = tournament,
+                            viewModel = viewModel,
+                            onCardClick = {
+                                Log.d("TournamentsScreen", "Navigating to tournament details: ${tournament.id}")
+                                navController.navigate(Screen.TournamentDetails.createRoute(tournament.id))
+                            },
+                            navController = navController,
+                            currency = userCurrency
                         )
                     }
-                }
-            } else {
-                items(tournaments) { tournament ->
-                    TournamentCard(
-                        tournament = tournament,
-                        viewModel = viewModel,
-                        onCardClick = {
-                            Log.d("TournamentsScreen", "Navigating to tournament details: ${tournament.id}")
-                            navController.navigate(Screen.TournamentDetails.createRoute(tournament.id))
-                        },
-                        navController = navController,
-                        currency = userCurrency
-                    )
                 }
             }
         }
@@ -239,7 +270,7 @@ fun TournamentsScreenUI(navController: NavController, viewModel: TournamentViewM
 }
 
 @Composable
-fun TournamentsTopBar(walletBalance: Int, currency: String) {
+fun TournamentsTopBar(walletBalance: Int, currency: String, isRefreshing: Boolean = false) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -249,12 +280,25 @@ fun TournamentsTopBar(walletBalance: Int, currency: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            "NETWIN",
-            style = MaterialTheme.typography.titleLarge,
-            color = Color(0xFF00BCD4), // Cyan color
-            fontWeight = FontWeight.Bold
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "NETWIN",
+                style = MaterialTheme.typography.titleLarge,
+                color = Color(0xFF00BCD4), // Cyan color
+                fontWeight = FontWeight.Bold
+            )
+            
+            // Show refresh indicator next to title when refreshing
+            if (isRefreshing) {
+                Spacer(modifier = Modifier.width(8.dp))
+                CircularProgressIndicator(
+                    color = Color(0xFF00BCD4),
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp
+                )
+            }
+        }
+        
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 Icons.Default.AccountBalanceWallet,
@@ -262,12 +306,12 @@ fun TournamentsTopBar(walletBalance: Int, currency: String) {
                 tint = Color(0xFF00BCD4), // Cyan color
                 modifier = Modifier.size(24.dp)
             )
-                            Text(
+            Text(
                     NGNTransactionUtils.formatAmount(walletBalance.toDouble(), currency),
-                    modifier = Modifier.padding(start = 4.dp),
-                    color = Color(0xFF00BCD4), // Cyan color
+                modifier = Modifier.padding(start = 4.dp),
+                color = Color(0xFF00BCD4), // Cyan color
                     fontSize = MaterialTheme.typography.bodyMedium.fontSize
-                )
+            )
         }
     }
 }
@@ -320,9 +364,9 @@ fun WelcomeCard(userName: String) {
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Ready to compete? Join a tournament and showcase your skills!",
-                color = Color.White.copy(alpha = 0.8f),
+                Text(
+                    text = "Ready to compete? Join a tournament and showcase your skills!",
+                    color = Color.White.copy(alpha = 0.8f),
                 fontSize = MaterialTheme.typography.bodyMedium.fontSize
             )
         }
@@ -332,7 +376,9 @@ fun WelcomeCard(userName: String) {
 @Composable
 fun TournamentsFilters(
     selectedFilter: String,
-    onFilterChange: (String) -> Unit
+    onFilterChange: (String) -> Unit,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {}
 ) {
     Row(
         Modifier
@@ -361,6 +407,7 @@ fun TournamentsFilters(
             selected = selectedFilter == "All Maps",
             onClick = { onFilterChange("All Maps") }
         )
+        // Refresh chip/button removed as requested
     }
 
     Spacer(Modifier.width(12.dp))
@@ -412,58 +459,6 @@ fun FilterChip(
     }
 }
 
-@Composable
-fun TournamentList(
-    tournaments: List<Tournament>,
-    onJoin: (String) -> Unit,
-    navController: NavController
-) {
-    Log.d("TournamentsScreen", "TournamentList composable called with ${tournaments.size} tournaments")
-    Log.d("TournamentsScreen", "TournamentList - First tournament: ${tournaments.firstOrNull()?.name}")
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF121212)) // Explicit dark background
-    ) {
-        if (tournaments.isEmpty()) {
-            Log.d("TournamentsScreen", "TournamentList - No tournaments available")
-            Text(
-                text = "No tournaments available",
-                color = Color.White, // Explicit white text
-                fontSize = MaterialTheme.typography.bodyMedium.fontSize,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(16.dp)
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF121212)), // Explicit dark background
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(tournaments) { tournament ->
-                    Log.d("TournamentsScreen", "Rendering tournament card for: ${tournament.name}")
-                    TournamentCard(
-                        tournament = tournament,
-                        viewModel = viewModel(),
-                        onCardClick = {
-                            Log.d(
-                                "TournamentsScreen",
-                                "Navigating to tournament details: ${tournament.id}"
-                            )
-                            navController.navigate(Screen.TournamentDetails.createRoute(tournament.id))
-                        },
-                        navController = navController,
-                        currency = TODO()
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun TournamentCard(
@@ -473,71 +468,44 @@ fun TournamentCard(
     navController: NavController,
     currency: String
 ) {
+    // ✅ IMPROVED: Use ViewModel states + local fallback for better UX
     val registrationStatus by viewModel.registrationStatus.collectAsState()
     val showKycRequiredDialog by viewModel.showKycRequiredDialog.collectAsState()
+    val isRegistering by viewModel.isRegistering.collectAsState() // ✅ Use ViewModel state
+    val registrationError by viewModel.registrationError.collectAsState() // ✅ Add error handling
+    var localIsRegistering by remember { mutableStateOf(false) } // ✅ Keep local state as backup
     val context = LocalContext.current
     val user = FirebaseAuth.getInstance().currentUser
 
+    // ✅ FIXED: Remove nullable access
+    val tournamentState by viewModel.state.collectAsState()
+    val remainingTime = tournamentState?.countdowns[tournament.id] ?: ""
+
+    // Existing registration status check
     LaunchedEffect(tournament.id, user?.uid) {
         if (user != null) {
             viewModel.checkRegistrationStatus(tournament.id, user.uid)
         }
     }
 
-    var remainingTime by remember { mutableStateOf("") }
-
-    LaunchedEffect(tournament.startDate, tournament.endDate) {
-        // Only update timer for upcoming and ongoing tournaments
-        if (tournament.computedStatus == TournamentStatus.UPCOMING ||
-            tournament.computedStatus == TournamentStatus.ONGOING) {
-            while (true) {
-                val currentTime = System.currentTimeMillis()
-                remainingTime = when (tournament.computedStatus) {
-                    TournamentStatus.UPCOMING -> {
-                        val timeDiff = tournament.startDate - currentTime
-                        if (timeDiff <= 0) {
-                            "Starting..."
-                        } else {
-                            val hours = timeDiff / (60 * 60 * 1000)
-                            val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
-                            val seconds = (timeDiff % (60 * 1000)) / 1000
-                            when {
-                                hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
-                                minutes > 0 -> String.format("%02d:%02d", minutes, seconds)
-                                else -> String.format("%02d seconds", seconds)
-                            }
-                        }
-                    }
-                    TournamentStatus.ONGOING -> {
-                        val timeDiff = tournament.endDate - currentTime
-                        if (timeDiff <= 0) {
-                            "Ending..."
-                        } else {
-                            val hours = timeDiff / (60 * 60 * 1000)
-                            val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
-                            val seconds = (timeDiff % (60 * 1000)) / 1000
-                            when {
-                                hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
-                                minutes > 0 -> String.format("%02d:%02d", minutes, seconds)
-                                else -> String.format("%02d seconds", seconds)
-                            }
-                        }
-                    }
-                    else -> break
-                }
-                delay(1000)
-            }
-        } else {
-            // Set static text for non-timer tournaments
-            remainingTime = when (tournament.computedStatus) {
-                TournamentStatus.STARTS_SOON -> "Starts Soon"
-                TournamentStatus.ROOM_OPEN -> "Room Open"
-                TournamentStatus.COMPLETED -> "Completed"
-                else -> ""
-            }
+    // ✅ NEW: Error handling with Toast
+    registrationError?.let { error ->
+        LaunchedEffect(error) {
+            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+            viewModel.clearRegistrationError()
         }
     }
 
+    // ✅ IMPROVED: Better registration completion handling
+    LaunchedEffect(viewModel.lastProcessedTournamentId.collectAsState().value) {
+        val processedId = viewModel.lastProcessedTournamentId.value
+        if (processedId == tournament.id) {
+            localIsRegistering = false
+            viewModel.clearLastProcessedTournamentId()
+        }
+    }
+
+    // KYC Dialog
     if (showKycRequiredDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.clearKycDialog() },
@@ -559,179 +527,921 @@ fun TournamentCard(
         )
     }
 
+    // ✅ KEEP: Your complete Card UI structure
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .clickable(onClick = onCardClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1E1E1E)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column {
+        Column { // Main content column for the card
+            // ✅ KEEP: IMAGE / OVERLAY SECTION
             Box(
                 modifier = Modifier
                     .height(140.dp)
                     .fillMaxWidth()
             ) {
-                // Background placeholder for when no image is available
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    Color(0xFF1E1E1E),
-                                    Color(0xFF2A2A2A)
+                // Background placeholder or Image
+                if (tournament.bannerImage.isNullOrEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(Color(0xFF2A2A2A), Color(0xFF1E1E1E))
                                 )
                             )
-                        )
-                )
-
-                // Only show AsyncImage if tournament has an image URL
-                if (!tournament.imageUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = tournament.imageUrl,
-                        contentDescription = "Tournament Poster",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
                     )
-                }
-
-                // Show tournament info overlay when no image is available
-                if (tournament.imageUrl.isNullOrEmpty()) {
+                    // Centered Info when no image
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(8.dp)
                         ) {
                             Icon(
                                 Icons.Default.EmojiEvents,
-                                contentDescription = null,
+                                contentDescription = "Tournament Event",
                                 tint = Color(0xFF00BCD4),
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(40.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = tournament.name,
                                 color = Color.White,
-                                fontSize = MaterialTheme.typography.titleMedium.fontSize,
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = tournament.map,
-                                color = Color.Gray,
-                                fontSize = MaterialTheme.typography.bodySmall.fontSize,
+                                color = Color.White.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.bodySmall,
                                 textAlign = TextAlign.Center
                             )
                         }
                     }
+                } else {
+                    AsyncImage(
+                        model = tournament.bannerImage,
+                        contentDescription = "Tournament Banner: ${tournament.name}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
-                // You can add status badges here on top of the image
+                // Overlays on top of the image/placeholder
                 TournamentStatusBadge(
                     status = tournament.computedStatus,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(12.dp)
+                        .padding(8.dp)
                 )
                 ModeChip(
                     tournament.mode,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(12.dp)
+                        .padding(8.dp)
                 )
-                Text(
-                    text = remainingTime,
-                    color = Color.White,
-                    fontSize = MaterialTheme.typography.bodySmall.fontSize,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(12.dp)
-                )
-
+                if (remainingTime.isNotBlank()) {
+                    Text(
+                        text = remainingTime,
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .background(
+                                Color.Black.copy(alpha = 0.5f),
+                                RoundedCornerShape(topEnd = 8.dp, bottomStart = 12.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
 
+            // ✅ KEEP: INFO SECTION BELOW IMAGE
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Tournament Name and Map
+                Text(
+                    text = tournament.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = tournament.name,
-                        color = Color.White,
-                        fontSize = MaterialTheme.typography.titleMedium.fontSize,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    Icon(
+                        Icons.Default.PinDrop,
+                        contentDescription = "Map",
+                        tint = Color(0xFF00BCD4),
+                        modifier = Modifier.size(16.dp)
                     )
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.PinDrop,
-                            contentDescription = "Map",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = tournament.map,
-                            color = Color.White,
-                            fontSize = MaterialTheme.typography.bodyMedium.fontSize
-                        )
-                    }
+                    Text(
+                        text = tournament.map,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
                 }
 
-                                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                InfoChip("Prize Pool", NGNTransactionUtils.formatAmount(tournament.prizePool.toDouble(), currency))
-                                InfoChip("Per Kill", NGNTransactionUtils.formatAmount(tournament.perKillPrize.toDouble(), currency))
-                                InfoChip("Entry Fee", NGNTransactionUtils.formatAmount(tournament.entryFee.toDouble(), currency))
-                            }
+                // ✅ KEEP: Info Chips (Prize, Kill, Fee) - This was missing in my version!
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    InfoChip("Prize Pool", NGNTransactionUtils.formatAmount(tournament.prizePool.toDouble(), currency))
+                    InfoChip("Per Kill", NGNTransactionUtils.formatAmount(tournament.killReward ?: 0.0, currency))
+                    InfoChip("Entry Fee", if (tournament.entryFee > 0) NGNTransactionUtils.formatAmount(tournament.entryFee.toDouble(), currency) else "Free")
+                }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = remainingTime,
-                    color = Color.White,
-                    fontSize = MaterialTheme.typography.bodyMedium.fontSize,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
+                // ✅ KEEP: Tournament Capacity Indicator
+                TournamentCapacityIndicator(
+                    registeredTeams = tournament.registeredTeams,
+                    maxTeams = tournament.maxTeams,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                // ✅ IMPROVED: Registration Button with better state management
+                val canRegister = tournament.computedStatus == TournamentStatus.UPCOMING &&
+                        tournament.maxTeams > tournament.registeredTeams &&
+                        registrationStatus != true
 
-                // Dynamic button based on tournament status
-                when (tournament.computedStatus) {
-                    TournamentStatus.UPCOMING -> {
-                        Button(
-                            onClick = {
-                                viewModel.handleEvent(TournamentEvent.RegisterForTournament(tournament, inGameId = ""))
+                val isFull = tournament.maxTeams <= tournament.registeredTeams
+                val showSpinner = isRegistering || localIsRegistering // ✅ Use either state
+
+                if (tournament.computedStatus == TournamentStatus.UPCOMING ||
+                    tournament.computedStatus == TournamentStatus.ROOM_OPEN ||
+                    tournament.computedStatus == TournamentStatus.STARTS_SOON) {
+
+                    Button(
+//                        onClick = {
+//                            if (canRegister && !showSpinner) {
+//                                localIsRegistering = true // ✅ Set local state immediately for UI feedback
+//                                viewModel.handleEvent(
+//                                    TournamentEvent.RegisterForTournament(
+//                                        tournament = tournament,
+//                                        inGameId = ""
+//                                    )
+//                                )
+//                            }
+//                        },
+                        // Replace the existing register button onClick with:
+                        onClick = {
+                            if (canRegister && !showSpinner) {
+                                // Navigate to registration flow instead of direct registration
+                                navController.navigate(
+                                    TournamentRegistration(
+                                        tournamentId = tournament.id,
+                                        stepIndex = 1
+                                    )
+                                )
+                            }
+                        },
+
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                        enabled = canRegister && !showSpinner, // ✅ Use combined state
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = when {
+                                registrationStatus == true -> Color(0xFF4CAF50)
+                                isFull -> Color.DarkGray
+                                else -> Color(0xFF00BCD4)
                             },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                        ) {
-                            Text("Join Now", color = Color.Black, fontSize = MaterialTheme.typography.bodyMedium.fontSize)
+                            contentColor = Color.White, // ✅ Fixed: Use white text for better contrast
+                            disabledContainerColor = Color.DarkGray.copy(alpha = 0.5f),
+                            disabledContentColor = Color.White.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        if (showSpinner) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = Color.White, // ✅ Fixed: White spinner
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    text = "Registering...",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = when {
+                                    registrationStatus == true -> "✓ Registered"
+                                    isFull -> "Tournament Full"
+                                    else -> "Join Tournament"
+                                },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
                         }
                     }
-                    // Add cases for other statuses like ONGOING, COMPLETED if needed
-                    else -> {
-                        // Display something else, or nothing
-                    }
+                } else if (tournament.computedStatus == TournamentStatus.COMPLETED) {
+                    Text(
+                        textAlign = TextAlign.Center,
+                        text = "Tournament Ended",
+                        color = Color.White.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                    )
                 }
             }
         }
+    }
+}
+
+
+
+
+//
+//
+//@Composable
+//fun TournamentCard(
+//    tournament: Tournament,
+//    viewModel: TournamentViewModel,
+//    onCardClick: () -> Unit,
+//    navController: NavController,
+//    currency: String
+//) {
+//    // ✅ IMPROVED: Use ViewModel states + local fallback for better UX
+//    val registrationStatus by viewModel.registrationStatus.collectAsState()
+//    val showKycRequiredDialog by viewModel.showKycRequiredDialog.collectAsState()
+//    val isRegistering by viewModel.isRegistering.collectAsState() // ✅ Use ViewModel state
+//    val registrationError by viewModel.registrationError.collectAsState() // ✅ Add error handling
+//    var localIsRegistering by remember { mutableStateOf(false) } // ✅ Keep local state as backup
+//    val context = LocalContext.current
+//    val user = FirebaseAuth.getInstance().currentUser
+//
+//    // ✅ FIXED: Remove nullable access
+//    val tournamentState by viewModel.state.collectAsState()
+//    val remainingTime = tournamentState?.countdowns[tournament.id] ?: ""
+//
+//    // Existing registration status check
+//    LaunchedEffect(tournament.id, user?.uid) {
+//        if (user != null) {
+//            viewModel.checkRegistrationStatus(tournament.id, user.uid)
+//        }
+//    }
+//
+//    // ✅ NEW: Error handling with Toast
+//    registrationError?.let { error ->
+//        LaunchedEffect(error) {
+//            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+//            viewModel.clearRegistrationError()
+//        }
+//    }
+//
+//    // ✅ IMPROVED: Better registration completion handling
+//    LaunchedEffect(viewModel.lastProcessedTournamentId.collectAsState().value) {
+//        val processedId = viewModel.lastProcessedTournamentId.value
+//        if (processedId == tournament.id) {
+//            localIsRegistering = false
+//            viewModel.clearLastProcessedTournamentId()
+//        }
+//    }
+//
+//    // KYC Dialog
+//    if (showKycRequiredDialog) {
+//        AlertDialog(
+//            onDismissRequest = { viewModel.clearKycDialog() },
+//            title = { Text("KYC Required") },
+//            text = { Text("You must complete KYC verification to register for tournaments.") },
+//            confirmButton = {
+//                Button(onClick = {
+//                    viewModel.clearKycDialog()
+//                    navController.navigate(ScreenRoutes.KycScreen)
+//                }) {
+//                    Text("Go to KYC")
+//                }
+//            },
+//            dismissButton = {
+//                OutlinedButton(onClick = { viewModel.clearKycDialog() }) {
+//                    Text("Cancel")
+//                }
+//            }
+//        )
+//    }
+//
+//    // ✅ KEEP: Your complete Card UI structure
+//    Card(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(horizontal = 16.dp)
+//            .clickable(onClick = onCardClick),
+//        shape = RoundedCornerShape(12.dp),
+//        colors = CardDefaults.cardColors(
+//            containerColor = Color(0xFF1E1E1E)
+//        ),
+//        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+//    ) {
+//        Column { // Main content column for the card
+//            // ✅ KEEP: IMAGE / OVERLAY SECTION
+//            Box(
+//                modifier = Modifier
+//                    .height(140.dp)
+//                    .fillMaxWidth()
+//            ) {
+//                // Background placeholder or Image
+//                if (tournament.bannerImage.isNullOrEmpty()) {
+//                    Box(
+//                        modifier = Modifier
+//                            .fillMaxSize()
+//                            .background(
+//                                brush = Brush.verticalGradient(
+//                                    colors = listOf(Color(0xFF2A2A2A), Color(0xFF1E1E1E))
+//                                )
+//                            )
+//                    )
+//                    // Centered Info when no image
+//                    Box(
+//                        modifier = Modifier.fillMaxSize(),
+//                        contentAlignment = Alignment.Center
+//                    ) {
+//                        Column(
+//                            horizontalAlignment = Alignment.CenterHorizontally,
+//                            verticalArrangement = Arrangement.Center,
+//                            modifier = Modifier.padding(8.dp)
+//                        ) {
+//                            Icon(
+//                                Icons.Default.EmojiEvents,
+//                                contentDescription = "Tournament Event",
+//                                tint = Color(0xFF00BCD4),
+//                                modifier = Modifier.size(40.dp)
+//                            )
+//                            Spacer(modifier = Modifier.height(8.dp))
+//                            Text(
+//                                text = tournament.name,
+//                                color = Color.White,
+//                                style = MaterialTheme.typography.titleSmall,
+//                                fontWeight = FontWeight.Bold,
+//                                textAlign = TextAlign.Center,
+//                                maxLines = 2,
+//                                overflow = TextOverflow.Ellipsis
+//                            )
+//                            Spacer(modifier = Modifier.height(4.dp))
+//                            Text(
+//                                text = tournament.map,
+//                                color = Color.White.copy(alpha = 0.7f),
+//                                style = MaterialTheme.typography.bodySmall,
+//                                textAlign = TextAlign.Center
+//                            )
+//                        }
+//                    }
+//                } else {
+//                    AsyncImage(
+//                        model = tournament.bannerImage,
+//                        contentDescription = "Tournament Banner: ${tournament.name}",
+//                        contentScale = ContentScale.Crop,
+//                        modifier = Modifier.fillMaxSize()
+//                    )
+//                }
+//
+//                // Overlays on top of the image/placeholder
+//                TournamentStatusBadge(
+//                    status = tournament.computedStatus,
+//                    modifier = Modifier
+//                        .align(Alignment.TopStart)
+//                        .padding(8.dp)
+//                )
+//                ModeChip(
+//                    tournament.mode,
+//                    modifier = Modifier
+//                        .align(Alignment.TopEnd)
+//                        .padding(8.dp)
+//                )
+//                if (remainingTime.isNotBlank()) {
+//                    Text(
+//                        text = remainingTime,
+//                        color = Color.White,
+//                        style = MaterialTheme.typography.bodySmall,
+//                        fontWeight = FontWeight.Bold,
+//                        modifier = Modifier
+//                            .align(Alignment.BottomStart)
+//                            .background(
+//                                Color.Black.copy(alpha = 0.5f),
+//                                RoundedCornerShape(topEnd = 8.dp, bottomStart = 12.dp)
+//                            )
+//                            .padding(horizontal = 8.dp, vertical = 4.dp)
+//                    )
+//                }
+//            }
+//
+//            // ✅ KEEP: INFO SECTION BELOW IMAGE
+//            Column(
+//                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+//                verticalArrangement = Arrangement.spacedBy(10.dp)
+//            ) {
+//                // Tournament Name and Map
+//                Text(
+//                    text = tournament.name,
+//                    style = MaterialTheme.typography.titleMedium,
+//                    color = Color.White,
+//                    fontWeight = FontWeight.Bold,
+//                    maxLines = 1,
+//                    overflow = TextOverflow.Ellipsis
+//                )
+//                Row(
+//                    verticalAlignment = Alignment.CenterVertically,
+//                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+//                ) {
+//                    Icon(
+//                        Icons.Default.PinDrop,
+//                        contentDescription = "Map",
+//                        tint = Color(0xFF00BCD4),
+//                        modifier = Modifier.size(16.dp)
+//                    )
+//                    Text(
+//                        text = tournament.map,
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = Color.White.copy(alpha = 0.8f)
+//                    )
+//                }
+//
+//                // ✅ KEEP: Info Chips (Prize, Kill, Fee) - This was missing in my version!
+//                Row(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.SpaceBetween
+//                ) {
+//                    InfoChip("Prize Pool", NGNTransactionUtils.formatAmount(tournament.prizePool.toDouble(), currency))
+//                    InfoChip("Per Kill", NGNTransactionUtils.formatAmount(tournament.killReward ?: 0.0, currency))
+//                    InfoChip("Entry Fee", if (tournament.entryFee > 0) NGNTransactionUtils.formatAmount(tournament.entryFee.toDouble(), currency) else "Free")
+//                }
+//
+//                // ✅ KEEP: Tournament Capacity Indicator
+//                TournamentCapacityIndicator(
+//                    registeredTeams = tournament.registeredTeams,
+//                    maxTeams = tournament.maxTeams,
+//                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+//                )
+//
+//                // ✅ IMPROVED: Registration Button with better state management
+//                val canRegister = tournament.computedStatus == TournamentStatus.UPCOMING &&
+//                        tournament.maxTeams > tournament.registeredTeams &&
+//                        registrationStatus != true
+//
+//                val isFull = tournament.maxTeams <= tournament.registeredTeams
+//                val showSpinner = isRegistering || localIsRegistering // ✅ Use either state
+//
+//                if (tournament.computedStatus == TournamentStatus.UPCOMING ||
+//                    tournament.computedStatus == TournamentStatus.ROOM_OPEN ||
+//                    tournament.computedStatus == TournamentStatus.STARTS_SOON) {
+//
+//                    Button(
+//                        onClick = {
+//                            if (canRegister && !showSpinner) {
+//                                localIsRegistering = true // ✅ Set local state immediately for UI feedback
+//                                viewModel.handleEvent(
+//                                    TournamentEvent.RegisterForTournament(
+//                                        tournament = tournament,
+//                                        inGameId = ""
+//                                    )
+//                                )
+//                            }
+//                        },
+//                        modifier = Modifier.fillMaxWidth().height(48.dp),
+//                        enabled = canRegister && !showSpinner, // ✅ Use combined state
+//                        shape = RoundedCornerShape(8.dp),
+//                        colors = ButtonDefaults.buttonColors(
+//                            containerColor = when {
+//                                registrationStatus == true -> Color(0xFF4CAF50)
+//                                isFull -> Color.DarkGray
+//                                else -> Color(0xFF00BCD4)
+//                            },
+//                            contentColor = Color.White, // ✅ Fixed: Use white text for better contrast
+//                            disabledContainerColor = Color.DarkGray.copy(alpha = 0.5f),
+//                            disabledContentColor = Color.White.copy(alpha = 0.5f)
+//                        )
+//                    ) {
+//                        if (showSpinner) {
+//                            Row(
+//                                verticalAlignment = Alignment.CenterVertically,
+//                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+//                            ) {
+//                                CircularProgressIndicator(
+//                                    modifier = Modifier.size(20.dp),
+//                                    color = Color.White, // ✅ Fixed: White spinner
+//                                    strokeWidth = 2.dp
+//                                )
+//                                Text(
+//                                    text = "Registering...",
+//                                    fontWeight = FontWeight.Bold,
+//                                    fontSize = 16.sp
+//                                )
+//                            }
+//                        } else {
+//                            Text(
+//                                text = when {
+//                                    registrationStatus == true -> "✓ Registered"
+//                                    isFull -> "Tournament Full"
+//                                    else -> "Join Tournament"
+//                                },
+//                                fontWeight = FontWeight.Bold,
+//                                fontSize = 16.sp
+//                            )
+//                        }
+//                    }
+//                } else if (tournament.computedStatus == TournamentStatus.COMPLETED) {
+//                    Text(
+//                        textAlign = TextAlign.Center,
+//                        text = "Tournament Ended",
+//                        color = Color.White.copy(alpha = 0.7f),
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+//                    )
+//                }
+//            }
+//        }
+//    }
+//}
+//
+//
+
+
+//
+//@Composable
+//fun TournamentCard(
+//    tournament: Tournament,
+//    viewModel: TournamentViewModel,
+//    onCardClick: () -> Unit,
+//    navController: NavController,
+//    currency: String
+//) {
+//    // Collect registration state specifically for THIS tournament if your state is granular.
+//    // For this example, using a local 'isRegistering' state for the spinner.
+//    // You'll need to observe a state from the ViewModel that indicates when registration *completes*
+//    // for this specific tournament, or a global registration completion event.
+//    var isRegistering by remember { mutableStateOf(false) }
+//
+//    // Existing state collections
+//    val registrationStatus by viewModel.registrationStatus.collectAsState() // Keep this for overall status updates if used elsewhere
+//    val showKycRequiredDialog by viewModel.showKycRequiredDialog.collectAsState()
+//    val context = LocalContext.current
+//    val user = FirebaseAuth.getInstance().currentUser
+//
+//    // Existing LaunchedEffects for checking registration and remaining time
+//    LaunchedEffect(tournament.id, user?.uid) {
+//        if (user != null) {
+//            viewModel.checkRegistrationStatus(tournament.id, user.uid)
+//        }
+//    }
+//
+////    var remainingTime by remember { mutableStateOf("") }
+////    LaunchedEffect(tournament.startTime, tournament.completedAt, tournament.computedStatus) { // Added computedStatus
+////        while (true) {
+////            if (tournament.computedStatus == TournamentStatus.COMPLETED || tournament.computedStatus == null) {
+////                remainingTime = "" // Clear if completed or status is null
+////                break
+////            }
+////            val currentTime = System.currentTimeMillis()
+////            remainingTime = when (tournament.computedStatus) {
+////                TournamentStatus.UPCOMING -> {
+////                    val timeDiff = (tournament.startTime ?: 0L) - currentTime
+////                    if (timeDiff <= 0) {
+////                        "Starting..."
+////                    } else {
+////                        val hours = timeDiff / (60 * 60 * 1000)
+////                        val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
+////                        val seconds = (timeDiff % (60 * 1000)) / 1000
+////                        when {
+////                            hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
+////                            minutes > 0 -> String.format("%02d:%02d", minutes, seconds)
+////                            else -> String.format("%02ds", seconds) // Shorter "s" for seconds
+////                        }
+////                    }
+////                }
+////                TournamentStatus.ONGOING -> {
+////                    val timeDiff = (tournament.completedAt ?: 0L) - currentTime
+////                    if (timeDiff <= 0) {
+////                        "Ending..."
+////                    } else {
+////                        val hours = timeDiff / (60 * 60 * 1000)
+////                        val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
+////                        val seconds = (timeDiff % (60 * 1000)) / 1000
+////                        when {
+////                            hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
+////                            minutes > 0 -> String.format("%02d:%02d", minutes, seconds)
+////                            else -> String.format("%02ds", seconds) // Shorter "s" for seconds
+////                        }
+////                    }
+////                }
+////                // Handle other statuses if necessary, or break
+////                else -> {
+////                    remainingTime = "" // Clear for other statuses like COMPLETED
+////                    break
+////                }
+////            }
+////            if (remainingTime == "Starting..." || remainingTime == "Ending...") {
+////                // Potentially refresh tournament data or re-evaluate status after a short delay
+////                delay(5000) // Delay then loop will re-evaluate, or trigger a refresh from VM
+////                // For MVP, simply showing the text might be enough
+////            }
+////            delay(1000) // Update every second
+////        }
+////    }
+//
+//    val tournamentState by viewModel.state.collectAsState()
+//    val remainingTime = tournamentState?.countdowns[tournament.id] ?: ""
+//
+//
+//
+//    // This LaunchedEffect will listen to a hypothetical state from your ViewModel
+//    // that tells when a registration attempt has finished (succeeded or failed).
+//    // You need to implement this in your ViewModel.
+//    // For example, viewModel.tournamentRegistrationCompleteFlow: Flow<String?>
+//    // where String is the tournamentId that just finished registration.
+//    LaunchedEffect(viewModel.lastProcessedTournamentId.collectAsState().value) {
+//        val processedId = viewModel.lastProcessedTournamentId.value
+//        if (processedId == tournament.id) {
+//            isRegistering = false
+//            viewModel.clearLastProcessedTournamentId() // Reset the signal in ViewModel
+//        }
+//    }
+//
+//
+//    if (showKycRequiredDialog) {
+//        AlertDialog(
+//            onDismissRequest = { viewModel.clearKycDialog() },
+//            title = { Text("KYC Required") },
+//            text = { Text("You must complete KYC verification to register for tournaments.") },
+//            confirmButton = {
+//                Button(onClick = {
+//                    viewModel.clearKycDialog()
+//                    navController.navigate(ScreenRoutes.KycScreen)
+//                }) {
+//                    Text("Go to KYC")
+//                }
+//            },
+//            dismissButton = {
+//                OutlinedButton(onClick = { viewModel.clearKycDialog() }) {
+//                    Text("Cancel")
+//                }
+//            }
+//        )
+//    }
+//
+//    Card(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(horizontal = 16.dp) // Keep vertical padding in LazyColumn item
+//            .clickable(onClick = onCardClick),
+//        shape = RoundedCornerShape(12.dp),
+//        colors = CardDefaults.cardColors(
+//            containerColor = Color(0xFF1E1E1E) // Specified dark theme card color
+//        ),
+//        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp) // Subtle elevation
+//    ) {
+//        Column { // Main content column for the card
+//            // --- IMAGE / OVERLAY SECTION ---
+//            Box(
+//                modifier = Modifier
+//                    .height(140.dp) // Consider making this dynamic or aspect ratio based
+//                    .fillMaxWidth()
+//            ) {
+//                // Background placeholder or Image
+//                if (tournament.bannerImage.isNullOrEmpty()) {
+//                    Box( // Gradient Placeholder
+//                        modifier = Modifier
+//                            .fillMaxSize()
+//                            .background(
+//                                brush = Brush.verticalGradient(
+//                                    colors = listOf(Color(0xFF2A2A2A), Color(0xFF1E1E1E))
+//                                )
+//                            )
+//                    )
+//                    // Centered Info when no image
+//                    Box(
+//                        modifier = Modifier.fillMaxSize(),
+//                        contentAlignment = Alignment.Center
+//                    ) {
+//                        Column(
+//                            horizontalAlignment = Alignment.CenterHorizontally,
+//                            verticalArrangement = Arrangement.Center,
+//                            modifier = Modifier.padding(8.dp)
+//                        ) {
+//                            Icon(
+//                                Icons.Default.EmojiEvents, // Using a relevant icon
+//                                contentDescription = "Tournament Event",
+//                                tint = Color(0xFF00BCD4), // Accent color
+//                                modifier = Modifier.size(40.dp)
+//                            )
+//                            Spacer(modifier = Modifier.height(8.dp))
+//                            Text(
+//                                text = tournament.name,
+//                                color = Color.White,
+//                                style = MaterialTheme.typography.titleSmall, // Adjusted for overlay
+//                                fontWeight = FontWeight.Bold,
+//                                textAlign = TextAlign.Center,
+//                                maxLines = 2,
+//                                overflow = TextOverflow.Ellipsis
+//                            )
+//                            Spacer(modifier = Modifier.height(4.dp))
+//                            Text(
+//                                text = tournament.map,
+//                                color = Color.White.copy(alpha = 0.7f),
+//                                style = MaterialTheme.typography.bodySmall,
+//                                textAlign = TextAlign.Center
+//                            )
+//                        }
+//                    }
+//                } else {
+//                    AsyncImage(
+//                        model = tournament.bannerImage,
+//                        contentDescription = "Tournament Banner: ${tournament.name}",
+//                        contentScale = ContentScale.Crop,
+//                        modifier = Modifier.fillMaxSize()
+//                    )
+//                }
+//
+//                // Overlays on top of the image/placeholder (Status, Mode, Time)
+//                TournamentStatusBadge(
+//                    status = tournament.computedStatus,
+//                    modifier = Modifier
+//                        .align(Alignment.TopStart)
+//                        .padding(8.dp) // Adjusted padding
+//                )
+//                ModeChip(
+//                    tournament.mode,
+//                    modifier = Modifier
+//                        .align(Alignment.TopEnd)
+//                        .padding(8.dp) // Adjusted padding
+//                )
+//                if (remainingTime.isNotBlank()) {
+//                    Text(
+//                        text = remainingTime,
+//                        color = Color.White,
+//                        style = MaterialTheme.typography.bodySmall,
+//                        fontWeight = FontWeight.Bold,
+//                        modifier = Modifier
+//                            .align(Alignment.BottomStart)
+//                            .background(
+//                                Color.Black.copy(alpha = 0.5f),
+//                                RoundedCornerShape(topEnd = 8.dp, bottomStart = 12.dp) // Match card corner
+//                            )
+//                            .padding(horizontal = 8.dp, vertical = 4.dp)
+//                    )
+//                }
+//            }
+//
+//            // --- INFO SECTION BELOW IMAGE ---
+//            Column(
+//                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), // Consistent padding
+//                verticalArrangement = Arrangement.spacedBy(10.dp) // Consistent spacing
+//            ) {
+//                // Tournament Name and Map (Improved Hierarchy)
+//                Text(
+//                    text = tournament.name,
+//                    style = MaterialTheme.typography.titleMedium, // More prominent
+//                    color = Color.White,
+//                    fontWeight = FontWeight.Bold,
+//                    maxLines = 1,
+//                    overflow = TextOverflow.Ellipsis
+//                )
+//                Row(
+//                    verticalAlignment = Alignment.CenterVertically,
+//                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+//                ) {
+//                    Icon(
+//                        Icons.Default.PinDrop,
+//                        contentDescription = "Map",
+//                        tint = Color(0xFF00BCD4), // Accent color
+//                        modifier = Modifier.size(16.dp)
+//                    )
+//                    Text(
+//                        text = tournament.map,
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = Color.White.copy(alpha = 0.8f)
+//                    )
+//                }
+//
+//                // Info Chips (Prize, Kill, Fee)
+//                Row(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.SpaceBetween // Or SpaceEvenly
+//                ) {
+//                    InfoChip("Prize Pool", NGNTransactionUtils.formatAmount(tournament.prizePool.toDouble(), currency))
+//                    InfoChip("Per Kill", NGNTransactionUtils.formatAmount(tournament.killReward ?: 0.0, currency))
+//                    InfoChip("Entry Fee", if (tournament.entryFee > 0) NGNTransactionUtils.formatAmount(tournament.entryFee.toDouble(), currency) else "Free")
+//                }
+//
+//                // ----- NEW: TOURNAMENT CAPACITY INDICATOR -----
+//                TournamentCapacityIndicator(
+//                    registeredTeams = tournament.registeredTeams,
+//                    maxTeams = tournament.maxTeams,
+//                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp) // Add some spacing around it
+//                )
+//                // ----- END OF CAPACITY INDICATOR -----
+//
+//
+//                // ----- MODIFIED: DYNAMIC BUTTON WITH LOADING SPINNER -----
+////                val canRegister = tournament.computedStatus == TournamentStatus.UPCOMING && tournament.maxTeams > tournament.registeredTeams && !tournament.isRegistered // Add isRegistered check if available
+//                val canRegister = tournament.computedStatus == TournamentStatus.UPCOMING &&
+//                        tournament.maxTeams > tournament.registeredTeams &&
+//                        registrationStatus != true
+//
+//                val isFull = tournament.maxTeams <= tournament.registeredTeams
+//
+//                if (tournament.computedStatus == TournamentStatus.UPCOMING || tournament.computedStatus == TournamentStatus.ROOM_OPEN || tournament.computedStatus == TournamentStatus.STARTS_SOON) { // Show button for these statuses
+//                    Button(
+//                        onClick = {
+//                            if (canRegister && !isRegistering) {
+//                                isRegistering = true // Show spinner
+//                                // Consider passing a callback to the ViewModel to reset isRegistering
+//                                // once the operation completes, or use a SharedFlow/StateFlow from VM.
+//                                viewModel.handleEvent(
+//                                    TournamentEvent.RegisterForTournament(
+//                                        tournament = tournament, // Pass the whole tournament if needed by VM
+//                                        inGameId = "" // Or get this from user input if required
+//                                    )
+//                                )
+//                            }
+//                        },
+//                        modifier = Modifier.fillMaxWidth().height(48.dp), // Standard button height
+//                        enabled = canRegister && !isRegistering, // Disable if cannot register or already registering
+//                        shape = RoundedCornerShape(8.dp),
+//                        colors = ButtonDefaults.buttonColors(
+//                            containerColor = if (isFull && registrationStatus != true) Color.DarkGray else Color(0xFF00BCD4), // Use accent or Gray if full
+//                            contentColor = Color.Black, // Text color for the button
+//                            disabledContainerColor = Color.DarkGray.copy(alpha = 0.5f),
+//                            disabledContentColor = Color.White.copy(alpha = 0.5f)
+//                        )
+//                    ) {
+//                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+//                            if (isRegistering) {
+//                                CircularProgressIndicator(
+//                                    modifier = Modifier.size(24.dp),
+//                                    color = Color.Black, // Spinner color matching button text
+//                                    strokeWidth = 2.dp
+//                                )
+//                            } else {
+//                                Text(
+//                                    text = when {
+//                                        registrationStatus == true -> "Registered" // If you have this state
+//                                        isFull -> "Full"
+//                                        else -> "Join Now"
+//                                    },
+//                                    fontWeight = FontWeight.Bold,
+//                                    fontSize = 16.sp // Readable button text
+//                                )
+//                            }
+//                        }
+//                    }
+//                } else if (tournament.computedStatus == TournamentStatus.COMPLETED){
+//                    Text(
+//                        textAlign = TextAlign.Center,
+//                        text = "Tournament Ended",
+//                        color = Color.White.copy(alpha = 0.7f),
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+//                    )
+//                }
+//                // Else: No button or specific message for other statuses like ONGOING (unless you want one e.g. "View Details")
+//            }
+//        }
+//    }
+//}
+
+// Keep your existing TournamentStatusBadge, ModeChip, and InfoChip composables.
+// Make sure they use colors that are visible on your Color(0xFF1E1E1E) card background.
+// Example for InfoChip (ensure its colors are theme-aware or explicitly set for dark):
+@Composable
+fun InfoChip(label: String, value: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 4.dp) // Add some padding between chips
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.6f), // Muted for dark theme
+            style = MaterialTheme.typography.labelSmall // Use Material styles
+        )
+        Text(
+            text = value,
+            color = Color.White, // Prominent for dark theme
+            style = MaterialTheme.typography.bodyMedium, // Use Material styles
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -823,21 +1533,3 @@ private fun StatItem(
     }
 }
 
-@Composable
-fun InfoChip(label: String, value: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = label,
-            color = Color.Gray,
-            fontSize = MaterialTheme.typography.bodySmall.fontSize
-        )
-        Text(
-            text = value,
-            color = Color.White,
-            fontSize = MaterialTheme.typography.bodyMedium.fontSize,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}

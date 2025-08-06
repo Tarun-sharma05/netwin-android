@@ -1,17 +1,16 @@
 package com.cehpoint.netwin.data.remote
 
 import android.util.Log
+import com.cehpoint.netwin.data.model.Tournament
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.cehpoint.netwin.data.model.Tournament
-import com.google.firebase.firestore.DocumentSnapshot
-import com.google.firebase.firestore.Query
 
 @Singleton
 class FirebaseManager @Inject constructor(
@@ -163,7 +162,7 @@ class FirebaseManager @Inject constructor(
     fun getTournaments(callback: (List<Tournament>) -> Unit) {
         Log.d(TAG, "Fetching tournaments from collection: ${Collections.TOURNAMENTS}")
         firestore.collection(Collections.TOURNAMENTS)
-            .orderBy("startDate", Query.Direction.DESCENDING)
+            .orderBy("startTime", Query.Direction.DESCENDING)
             .get()
             .addOnSuccessListener { documents ->
                 Log.d(TAG, "Successfully fetched ${documents.size()} tournaments")
@@ -171,23 +170,27 @@ class FirebaseManager @Inject constructor(
                     try {
                         val tournament = Tournament.fromFirestore(
                             id = doc.id,
-                            name = doc.getString("name") ?: "",
+                            title = doc.getString("name") ?: "",
                             description = doc.getString("description") ?: "",
-                            startDate = doc.getTimestamp("startDate") ?: return@mapNotNull null,
-                            endDate = doc.getTimestamp("endDate") ?: return@mapNotNull null,
-                            maxPlayers = doc.getLong("maxPlayers")?.toInt() ?: 0,
-                            currentPlayers = doc.getLong("currentPlayers")?.toInt() ?: 0,
-                            entryFee = doc.getLong("entryFee")?.toInt() ?: 0,
-                            perKillPrize = doc.getLong("perKillPrize")?.toInt() ?: 0,
-                            prizePool = doc.getLong("prizePool")?.toInt() ?: 0,
-                            status = doc.get("status") as? List<String> ?: emptyList(),
-                            isFeatured = doc.getBoolean("isFeatured") ?: false,
-                            gameId = doc.getString("gameId") ?: "",
-                            createdBy = doc.getString("createdBy") ?: "",
+                            gameMode = doc.getString("gameType") ?: "",
+                            matchType = doc.getString("matchType") ?: "",
+                            map = doc.getString("map") ?: "",
+                            startDate = doc.getTimestamp("startTime") ?: return@mapNotNull null,
+                            entryFee = doc.getDouble("entryFee") ?: 0.0,
+                            prizePool = doc.getDouble("prizePool") ?: 0.0,
+                            maxTeams = doc.getLong("maxTeams")?.toInt() ?: 0,
+                            registeredTeams = doc.getLong("registeredTeams")?.toInt() ?: 0,
+                            status = doc.getString("status") ?: "upcoming",
+                            rules = doc.getString("rules"),
+                            image = doc.getString("bannerImage"),
+                            rewardsDistribution = doc.get("rewardsDistribution") as? List<Map<String, Any>>,
                             createdAt = doc.getTimestamp("createdAt") ?: return@mapNotNull null,
-                            imageUrl = doc.getString("imageUrl") ?: ""
+                            killReward = doc.getDouble("killReward"),
+                            roomId = doc.getString("roomId"),
+                            roomPassword = doc.getString("roomPassword"),
+                            actualStartTime = doc.getTimestamp("actualStartTime")
                         )
-                        Log.d(TAG, "Successfully parsed tournament: ${tournament.name}")
+                        Log.d(TAG, "Successfully parsed tournament: ${tournament.title}")
                         tournament
                     } catch (e: Exception) {
                         Log.e(TAG, "Error parsing tournament document ${doc.id}", e)
@@ -214,23 +217,27 @@ class FirebaseManager @Inject constructor(
             try {
                 val tournament = Tournament.fromFirestore(
                     id = document.id,
-                    name = document.getString("name") ?: "",
+                    title = document.getString("name") ?: "",
                     description = document.getString("description") ?: "",
-                    startDate = document.getTimestamp("startDate") ?: return Result.success(null),
-                    endDate = document.getTimestamp("endDate") ?: return Result.success(null),
-                    maxPlayers = document.getLong("maxPlayers")?.toInt() ?: 0,
-                    currentPlayers = document.getLong("currentPlayers")?.toInt() ?: 0,
-                    entryFee = document.getLong("entryFee")?.toInt() ?: 0,
-                    perKillPrize = document.getLong("perKillPrize")?.toInt() ?: 0,
-                    prizePool = document.getLong("prizePool")?.toInt() ?: 0,
-                    status = document.get("status") as? List<String> ?: emptyList(),
-                    isFeatured = document.getBoolean("isFeatured") ?: false,
-                    gameId = document.getString("gameId") ?: "",
-                    createdBy = document.getString("createdBy") ?: "",
+                    gameMode = document.getString("gameType") ?: "",
+                    matchType = document.getString("matchType") ?: "",
+                    map = document.getString("map") ?: "",
+                    startDate = document.getTimestamp("startTime") ?: return Result.success(null),
+                    entryFee = document.getDouble("entryFee") ?: 0.0,
+                    prizePool = document.getDouble("prizePool") ?: 0.0,
+                    maxTeams = document.getLong("maxTeams")?.toInt() ?: 0,
+                    registeredTeams = document.getLong("registeredTeams")?.toInt() ?: 0,
+                    status = document.getString("status") ?: "upcoming",
+                    rules = document.getString("rules"),
+                    image = document.getString("bannerImage"),
+                    rewardsDistribution = document.get("rewardsDistribution") as? List<Map<String, Any>>,
                     createdAt = document.getTimestamp("createdAt") ?: return Result.success(null),
-                    imageUrl = document.getString("imageUrl") ?: ""
+                    killReward = document.getDouble("killReward"),
+                    roomId = document.getString("roomId"),
+                    roomPassword = document.getString("roomPassword"),
+                    actualStartTime = document.getTimestamp("actualStartTime")
                 )
-                Log.d(TAG, "Successfully fetched tournament: ${tournament.name}")
+                Log.d(TAG, "Successfully fetched tournament: ${tournament.title}")
                 Result.success(tournament)
             } catch (e: Exception) {
                 Log.e(TAG, "Error parsing tournament document", e)

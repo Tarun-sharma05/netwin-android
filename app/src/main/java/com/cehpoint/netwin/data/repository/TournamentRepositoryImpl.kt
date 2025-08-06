@@ -14,6 +14,10 @@ import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import com.cehpoint.netwin.domain.model.Tournament as DomainTournament
 import com.cehpoint.netwin.data.model.TournamentRegistration
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class TournamentRepositoryImpl @Inject constructor(
     private val firebaseManager: FirebaseManager
@@ -38,10 +42,11 @@ class TournamentRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getTournaments(): Flow<List<DomainTournament>> = callbackFlow {
-        Log.d("TournamentRepository", "Starting to fetch tournaments from collection: ${FirebaseManager.Companion.Collections.TOURNAMENTS}")
+        Log.d("TournamentRepository", "Starting to fetch tournaments from collection: "+
+            "${FirebaseManager.Companion.Collections.TOURNAMENTS}")
         
         val subscription = tournamentsCollection
-            .orderBy("startDate")
+            .orderBy("startTime")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e("TournamentRepository", "Error fetching tournaments: ${error.message}")
@@ -58,48 +63,51 @@ class TournamentRepositoryImpl @Inject constructor(
                     Log.d("TournamentRepository", "Raw document data for ${doc.id}: ${doc.data}")
                 }
                 
+                // Offload mapping to background thread
+                GlobalScope.launch(Dispatchers.Default) {
                 val tournaments = snapshot?.documents?.mapNotNull { doc ->
                     try {
                         val data = doc.data ?: return@mapNotNull null
-                        Log.d("TournamentRepository", "Raw document data for ${doc.id}: $data")
-                        
-                        // Debug timestamp conversion
-                        val startTimestamp = data["startDate"] as? Timestamp
-                        val endTimestamp = data["endDate"] as? Timestamp
-                        if (startTimestamp != null && endTimestamp != null) {
-                            Log.d("TournamentRepository", "Timestamp debug for ${doc.id}:")
-                            Log.d("TournamentRepository", "  Start timestamp: $startTimestamp (${startTimestamp.toDate()})")
-                            Log.d("TournamentRepository", "  End timestamp: $endTimestamp (${endTimestamp.toDate()})")
-                            Log.d("TournamentRepository", "  Start as long: ${startTimestamp.toDate().time}")
-                            Log.d("TournamentRepository", "  End as long: ${endTimestamp.toDate().time}")
-                        }
-                        val tournament = Tournament.fromFirestore(
+                            Log.d("TournamentRepository", "Raw document data for ${doc.id}: $data")
+
+                            // Robust mapping for all known schema variants
+                            val title = data["title"] as? String ?: data["name"] as? String ?: ""
+                            val gameMode = data["gameMode"] as? String ?: data["gameType"] as? String ?: ""
+                            val maxTeams = (data["maxTeams"] as? Number)?.toInt() ?: 0
+                            val registeredTeams = (data["registeredTeams"] as? Number)?.toInt() ?: 0
+                            val image = data["image"] as? String ?: data["bannerImage"] as? String
+                            val startDate = when (val st = data["startDate"] ?: data["startTime"]) {
+                                is com.google.firebase.Timestamp -> st
+                                is String -> try { com.google.firebase.Timestamp(java.util.Date.from(java.time.Instant.parse(st))) } catch (e: Exception) { null }
+                                else -> null
+                            }
+                            val endDate = data["endDate"] as? com.google.firebase.Timestamp ?: data["completedAt"] as? com.google.firebase.Timestamp
+
+                            Tournament.fromFirestore(
                             id = doc.id,
-                            name = data["name"] as? String ?: "",
-                            description = data["description"] as? String ?: "",
-                            startDate = data["startDate"] as? Timestamp ?: Timestamp.now(),
-                            endDate = data["endDate"] as? Timestamp ?: Timestamp.now(),
-                            maxPlayers = (data["maxPlayers"] as? Number)?.toInt() ?: 0,
-                            currentPlayers = (data["currentPlayers"] as? Number)?.toInt() ?: 0,
-                            entryFee = (data["entryFee"] as? Number)?.toInt() ?: 0,
-                            perKillPrize = (data["perKillPrize"] as? Number)?.toInt() ?: 0,
-                            prizePool = (data["prizePool"] as? Number)?.toInt() ?: 0,
-                            status = (data["status"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
-                            isFeatured = data["isFeatured"] as? Boolean ?: false,
-                            gameId = data["gameId"] as? String ?: "",
-                            createdBy = data["createdBy"] as? String ?: "",
-                            createdAt = data["createdAt"] as? Timestamp ?: Timestamp.now(),
-                            imageUrl = data["imageUrl"] as? String ?: "",
-                            updatedAt = data["updatedAt"] as? Timestamp ?: Timestamp.now(),
-                            rulesUrl = data["rulesUrl"] as? String ?: "",
-                            platform = data["platform"] as? String ?: "",
-                            entryType = data["entryType"] as? String ?: "",
-                            isActive = data["isActive"] as? Boolean ?: true,
-                            mode = data["mode"] as? String,
-                            map = data["map"] as? String
-                        )
-                        Log.d("TournamentRepository", "Successfully parsed tournament: ${tournament.name}")
-                        tournament.toDomain()
+                                title = title,
+                                description = data["description"] as? String,
+                                gameMode = gameMode,
+                                entryFee = (data["entryFee"] as? Number)?.toDouble() ?: 0.0,
+                                prizePool = (data["prizePool"] as? Number)?.toDouble() ?: 0.0,
+                                maxTeams = maxTeams,
+                                registeredTeams = registeredTeams,
+                                status = data["status"] as? String ?: "upcoming",
+                                startDate = startDate,
+                                endDate = endDate,
+                                rules = data["rules"] as? String,
+                                image = image,
+                                createdAt = data["createdAt"] as? com.google.firebase.Timestamp,
+                                updatedAt = data["updatedAt"] as? com.google.firebase.Timestamp,
+                                // Extra fields for app logic
+                                matchType = data["matchType"] as? String,
+                                map = data["map"] as? String,
+                                rewardsDistribution = data["rewardsDistribution"] as? List<Map<String, Any>>,
+                                killReward = (data["killReward"] as? Number)?.toDouble() ?: (data["perKillReward"] as? Number)?.toDouble(),
+                                roomId = data["roomId"] as? String,
+                                roomPassword = data["roomPassword"] as? String,
+                                actualStartTime = data["actualStartTime"] as? com.google.firebase.Timestamp
+                            ).toDomain()
                     } catch (e: Exception) {
                         Log.e("TournamentRepository", "Error parsing tournament document ${doc.id}: ${e.message}")
                         Log.e("TournamentRepository", "Document data: ${doc.data}")
@@ -107,8 +115,11 @@ class TournamentRepositoryImpl @Inject constructor(
                     }
                 } ?: emptyList()
                 
+                    withContext(Dispatchers.Main) {
                 Log.d("TournamentRepository", "Sending ${tournaments.size} tournaments to UI")
                 trySend(tournaments)
+                    }
+                }
             }
         
         awaitClose { 
@@ -123,28 +134,28 @@ class TournamentRepositoryImpl @Inject constructor(
         if (data != null) {
             val tournament = Tournament.fromFirestore(
                 id = doc.id,
-                name = data["name"] as? String ?: "",
-                description = data["description"] as? String ?: "",
-                startDate = data["startDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                endDate = data["endDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                maxPlayers = (data["maxPlayers"] as? Number)?.toInt() ?: 0,
-                currentPlayers = (data["currentPlayers"] as? Number)?.toInt() ?: 0,
-                entryFee = (data["entryFee"] as? Number)?.toInt() ?: 0,
-                perKillPrize = (data["perKillPrize"] as? Number)?.toInt() ?: 0,
-                prizePool = (data["prizePool"] as? Number)?.toInt() ?: 0,
-                status = (data["status"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
-                isFeatured = data["isFeatured"] as? Boolean ?: false,
-                gameId = data["gameId"] as? String ?: "",
-                createdBy = data["createdBy"] as? String ?: "",
-                createdAt = data["createdAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                imageUrl = data["imageUrl"] as? String ?: "",
-                updatedAt = data["updatedAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                rulesUrl = data["rulesUrl"] as? String ?: "",
-                platform = data["platform"] as? String ?: "",
-                entryType = data["entryType"] as? String ?: "",
-                isActive = data["isActive"] as? Boolean ?: true,
-                mode = data["mode"] as? String,
-                map = data["map"] as? String
+                title = data["title"] as? String ?: "",
+                description = data["description"] as? String,
+                gameMode = data["gameMode"] as? String ?: "",
+                entryFee = (data["entryFee"] as? Number)?.toDouble() ?: 0.0,
+                prizePool = (data["prizePool"] as? Number)?.toDouble() ?: 0.0,
+                maxTeams = (data["maxTeams"] as? Number)?.toInt() ?: 0,
+                registeredTeams = (data["registeredTeams"] as? Number)?.toInt() ?: 0,
+                status = data["status"] as? String ?: "upcoming",
+                startDate = data["startDate"] as? Timestamp,
+                endDate = data["endDate"] as? Timestamp,
+                rules = data["rules"] as? String,
+                image = data["image"] as? String,
+                createdAt = data["createdAt"] as? Timestamp,
+                updatedAt = data["updatedAt"] as? Timestamp,
+                // Extra fields for app logic
+                matchType = data["matchType"] as? String,
+                map = data["map"] as? String,
+                rewardsDistribution = data["rewardsDistribution"] as? List<Map<String, Any>>,
+                killReward = (data["killReward"] as? Number)?.toDouble(),
+                roomId = data["roomId"] as? String,
+                roomPassword = data["roomPassword"] as? String,
+                actualStartTime = data["actualStartTime"] as? Timestamp
             )
             tournament.toDomain()
         } else {
@@ -189,11 +200,11 @@ class TournamentRepositoryImpl @Inject constructor(
             val tournament = transaction.get(tournamentRef).toObject(Tournament::class.java)
                 ?: throw Exception("Tournament not found")
 
-            if (tournament.currentPlayers >= tournament.maxPlayers) {
+            if (tournament.registeredTeams >= tournament.maxTeams) {
                 throw Exception("Tournament is full")
             }
 
-            transaction.update(tournamentRef, "currentPlayers", tournament.currentPlayers + 1)
+            transaction.update(tournamentRef, "registeredTeams", tournament.registeredTeams + 1)
         }.await()
 
         Result.success(Unit)
@@ -208,11 +219,11 @@ class TournamentRepositoryImpl @Inject constructor(
             val tournament = transaction.get(tournamentRef).toObject(Tournament::class.java)
                 ?: throw Exception("Tournament not found")
 
-            if (tournament.currentPlayers <= 0) {
+            if (tournament.registeredTeams <= 0) {
                 throw Exception("No players in tournament")
             }
 
-            transaction.update(tournamentRef, "currentPlayers", tournament.currentPlayers - 1)
+            transaction.update(tournamentRef, "registeredTeams", tournament.registeredTeams - 1)
         }.await()
 
         Result.success(Unit)
@@ -222,7 +233,7 @@ class TournamentRepositoryImpl @Inject constructor(
 
     override suspend fun updateTournamentStatus(id: String, status: TournamentStatus): Result<Unit> = try {
         tournamentsCollection.document(id)
-            .update("status", status.name)
+            .update("status", status.name.lowercase())
             .await()
         Result.success(Unit)
     } catch (e: Exception) {
@@ -254,28 +265,28 @@ class TournamentRepositoryImpl @Inject constructor(
             val tournament = if (data != null) {
                 Tournament.fromFirestore(
                     id = tournamentSnapshot.id,
-                    name = data["name"] as? String ?: "",
-                    description = data["description"] as? String ?: "",
-                    startDate = data["startDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                    endDate = data["endDate"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                    maxPlayers = (data["maxPlayers"] as? Number)?.toInt() ?: 0,
-                    currentPlayers = (data["currentPlayers"] as? Number)?.toInt() ?: 0,
-                    entryFee = (data["entryFee"] as? Number)?.toInt() ?: 0,
-                    perKillPrize = (data["perKillPrize"] as? Number)?.toInt() ?: 0,
-                    prizePool = (data["prizePool"] as? Number)?.toInt() ?: 0,
-                    status = (data["status"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
-                    isFeatured = data["isFeatured"] as? Boolean ?: false,
-                    gameId = data["gameId"] as? String ?: "",
-                    createdBy = data["createdBy"] as? String ?: "",
-                    createdAt = data["createdAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                    imageUrl = data["imageUrl"] as? String ?: "",
-                    updatedAt = data["updatedAt"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-                    rulesUrl = data["rulesUrl"] as? String ?: "",
-                    platform = data["platform"] as? String ?: "",
-                    entryType = data["entryType"] as? String ?: "",
-                    isActive = data["isActive"] as? Boolean ?: true,
-                    mode = data["mode"] as? String,
-                    map = data["map"] as? String
+                    title = data["title"] as? String ?: "",
+                    description = data["description"] as? String,
+                    gameMode = data["gameMode"] as? String ?: "",
+                    entryFee = (data["entryFee"] as? Number)?.toDouble() ?: 0.0,
+                    prizePool = (data["prizePool"] as? Number)?.toDouble() ?: 0.0,
+                    maxTeams = (data["maxTeams"] as? Number)?.toInt() ?: 0,
+                    registeredTeams = (data["registeredTeams"] as? Number)?.toInt() ?: 0,
+                    status = data["status"] as? String ?: "upcoming",
+                    startDate = data["startTime"] as? Timestamp, // <-- FIXED: use startTime from Firestore
+                    endDate = data["endDate"] as? Timestamp,
+                    rules = data["rules"] as? String,
+                    image = data["image"] as? String,
+                    createdAt = data["createdAt"] as? Timestamp,
+                    updatedAt = data["updatedAt"] as? Timestamp,
+                    // Extra fields for app logic
+                    matchType = data["matchType"] as? String,
+                    map = data["map"] as? String,
+                    rewardsDistribution = data["rewardsDistribution"] as? List<Map<String, Any>>,
+                    killReward = (data["killReward"] as? Number)?.toDouble(),
+                    roomId = data["roomId"] as? String,
+                    roomPassword = data["roomPassword"] as? String,
+                    actualStartTime = data["actualStartTime"] as? Timestamp
                 )
             } else {
                 null
@@ -292,7 +303,7 @@ class TournamentRepositoryImpl @Inject constructor(
             if (registrationSnapshot.exists()) {
                 throw Exception("You are already registered for this tournament.")
             }
-            if (tournament.currentPlayers >= tournament.maxPlayers) {
+            if (tournament.registeredTeams >= tournament.maxTeams) {
                 throw Exception("Sorry, this tournament is already full.")
             }
             
@@ -303,25 +314,24 @@ class TournamentRepositoryImpl @Inject constructor(
             }
             
             // KYC check (if required)
-            if (tournament.entryFee > 0 && user.kycStatus != "verified") {
+//            if (tournament.entryFee > 0 && user.kycStatus != "verified") {
+            if(tournament.entryFee > 0 && user?.kycStatus?.equals("verified", ignoreCase = true) == false) {
                 throw Exception("KYC verification required to register for this tournament.")
             }
-            // Registration window check (if required)
+            // Registration window check (allow registration any time before start)
             val now = System.currentTimeMillis()
-            if (now < tournament.startDate - 60 * 60 * 1000) { // Example: registration opens 1 hour before start
-                throw Exception("Registration is not open yet.")
-            }
-            if (now > tournament.startDate) {
+            val startMillis = tournament.startDate?.toDate()?.time ?: 0L
+            Log.d("TournamentRepoImpl", "Registration check: now=$now, startMillis=$startMillis, status=${tournament.status}")
+            if (now > startMillis) {
                 throw Exception("Registration is closed.")
             }
-            // Status check: Only allow registration if tournament is UPCOMING or STARTS_SOON
-            val statusList = tournament.status
-            if (statusList.contains("ONGOING") || statusList.contains("COMPLETED")) {
+            // Status check: Only allow registration if tournament is upcoming
+            if (tournament.status != "upcoming") {
                 throw Exception("Registration is closed for this tournament.")
             }
 
             // 3. All checks passed, perform the writes
-            val entryFee = tournament.entryFee.toDouble()
+            val entryFee = tournament.entryFee
             
             // Deduct from bonus balance first, then from withdrawable balance
             val bonusUsed = minOf(wallet.bonusBalance, entryFee)
@@ -330,7 +340,7 @@ class TournamentRepositoryImpl @Inject constructor(
             val newBonusBalance = wallet.bonusBalance - bonusUsed
             val newWithdrawableBalance = wallet.withdrawableBalance - withdrawableUsed
             val newTotalBalance = newBonusBalance + newWithdrawableBalance
-            val newPlayerCount = tournament.currentPlayers + 1
+            val newPlayerCount = tournament.registeredTeams + 1
 
             // Update wallet with new balances
             transaction.update(userWalletRef, "bonusBalance", newBonusBalance)
@@ -339,36 +349,35 @@ class TournamentRepositoryImpl @Inject constructor(
             
             // Update user's walletBalance for display
             transaction.update(userRef, "walletBalance", newTotalBalance)
-            
-            // Update tournament player count
-            transaction.update(tournamentRef, "currentPlayers", newPlayerCount)
-            // Create registration document in top-level collection
-            val registrationRecord = com.cehpoint.netwin.data.model.TournamentRegistration(
+
+            // Update tournament with new player count
+            transaction.update(tournamentRef, "registeredTeams", newPlayerCount)
+
+            // Create registration document
+            val registration = TournamentRegistration(
                 tournamentId = tournamentId,
                 userId = userId,
-                displayName = displayName,
                 teamName = teamName,
-                inGameId = inGameId,
-                status = "registered",
-                registeredAt = com.google.firebase.Timestamp.now()
+                paymentStatus = "completed",
+                registeredAt = Timestamp.now()
             )
-            transaction.set(registrationRef, registrationRecord)
-            // Create a transaction record for the user
-            val transactionRecord = com.cehpoint.netwin.data.model.Transaction(
-                amount = tournament.entryFee.toDouble(),
-                type = com.cehpoint.netwin.data.model.TransactionType.TOURNAMENT_ENTRY,
-                status = com.cehpoint.netwin.data.model.TransactionStatus.COMPLETED,
-                description = "Entry fee for ${tournament.name}",
-                tournamentId = tournamentId,
-                tournamentTitle = tournament.name,
-                createdAt = com.google.firebase.Timestamp.now()
+            transaction.set(registrationRef, registration)
+
+            // Create transaction record
+            val transactionRecord = hashMapOf(
+                "type" to "tournament_registration",
+                "amount" to -entryFee,
+                "description" to "Entry fee for ${tournament.title}",
+                "timestamp" to Timestamp.now(),
+                "status" to "completed",
+                "tournamentId" to tournamentId
             )
             transaction.set(userTransactionsRef.document(), transactionRecord)
-            null // A successful transaction returns null
         }.await()
+
         Result.success(Unit)
     } catch (e: Exception) {
-        Log.e("TournamentRepoImpl", "Error registering for tournament: ${e.message}", e)
+        Log.e("TournamentRepoImpl", "Error in registerForTournament transaction", e)
         Result.failure(e)
     }
 

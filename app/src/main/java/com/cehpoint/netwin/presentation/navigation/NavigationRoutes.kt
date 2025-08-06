@@ -39,7 +39,11 @@ sealed class ScreenRoutes {
 
     @Serializable
     data object ProfileSetupScreen
+
+
 }
+   @Serializable
+   data class TournamentRegistration(val tournamentId: String, val stepIndex: Int = 1)
 
 
 sealed class SubNavigation {
@@ -48,6 +52,12 @@ sealed class SubNavigation {
 
     @Serializable
     data object HomeNavGraph : SubNavigation()
+
+    //For Multi step tournament registration flow
+    @Serializable
+    data object RegistrationNavGraph : SubNavigation() // Add this
+
+
 }
 
 

@@ -7,8 +7,6 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -47,13 +45,15 @@ import com.cehpoint.netwin.utils.NGNTransactionUtils
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.rememberAsyncImagePainter
+import com.cehpoint.netwin.data.model.PendingDeposit
+import com.google.firebase.Timestamp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +88,7 @@ fun WalletScreen(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var withdrawSuccess by remember { mutableStateOf(false) }
-    
+
     // Get user country and currency
     var userCountry by remember { mutableStateOf("IN") }
     var userCurrency by remember { mutableStateOf("INR") }
@@ -540,7 +540,14 @@ fun WalletScreen(
                         bankName = if (userCountry.equals("Nigeria", ignoreCase = true) || userCountry.equals("NG", ignoreCase = true)) paymentDetails else null,
                         userCountry = userCountry
                     )
-                    walletViewModel.createWithdrawalRequest(request)
+                    walletViewModel.createWithdrawalRequest(
+                        userId = request.userId,
+                        amount = request.amount,
+                        paymentMethod = request.paymentMethod,
+                        bankName = request.bankName,
+                        accountNumber = request.accountNumber,
+                        accountName = request.accountName
+                    )
                     withdrawSuccess = true
                 } else if (isAuthenticated && currentUser == null) {
                     // Handle case where user is authenticated from DataStore but Firebase session is lost
@@ -554,7 +561,7 @@ fun WalletScreen(
 
     // Show UPI result message
     upiResultMessage?.let { msg ->
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { upiResultMessage = null },
             title = { Text("UPI Payment") },
             text = { Text(msg) },
@@ -715,7 +722,7 @@ private fun QuickActions(
 
 @Composable
 private fun QuickActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     onClick: () -> Unit,
     enabled: Boolean
@@ -749,7 +756,7 @@ private fun QuickActionButton(
 }
 
 @Composable
-private fun PendingDepositItem(deposit: com.cehpoint.netwin.data.model.PendingDeposit, currency: String) {
+private fun PendingDepositItem(deposit: PendingDeposit, currency: String) {
     Log.d("PendingDepositItem", "Rendering deposit: ${deposit.upiRefId}, amount: ${deposit.amount}, status: ${deposit.status}")
     Card(
         modifier = Modifier
@@ -1385,9 +1392,9 @@ fun WithdrawDialog(
                         }
                     } else {
                         if (paymentDetails.isBlank() || !paymentDetails.contains("@")) {
-                            error = "Enter a valid UPI ID"
-                            return@Button
-                        }
+                        error = "Enter a valid UPI ID"
+                        return@Button
+                    }
                     }
                     onWithdraw(amt, paymentDetails)
                     amount = ""
@@ -1452,7 +1459,7 @@ fun WithdrawalRequestItem(request: WithdrawalRequest, currency: String) {
     }
 }
 
-private fun formatDate(timestamp: com.google.firebase.Timestamp?): String {
+private fun formatDate(timestamp: Timestamp?): String {
     if (timestamp == null) return "Unknown"
     val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
     return sdf.format(timestamp.toDate())

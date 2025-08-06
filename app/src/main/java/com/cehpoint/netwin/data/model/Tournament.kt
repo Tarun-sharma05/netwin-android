@@ -9,88 +9,82 @@ import com.cehpoint.netwin.domain.model.TournamentMode
 data class Tournament(
     @DocumentId
     val id: String = "",
-    val name: String = "",
-    val description: String = "",
-    val startDate: Long = 0,
-    val endDate: Long = 0,
-    val maxPlayers: Int = 0,
-    val currentPlayers: Int = 0,
-    val entryFee: Int = 0,
-    val perKillPrize: Int = 0,
-    val prizePool: Int = 0,
-    val status: List<String> = emptyList(),
-    val isFeatured: Boolean = false,
-    val gameId: String = "",
-    val createdBy: String = "",
-    val createdAt: Long = 0,
-    val updatedAt: Long? = null,
-    val rulesUrl: String? = null,
-    val platform: String? = null,
-    val entryType: String? = null,
-    val isActive: Boolean = true,
-    val imageUrl: String = "",
-    val roomCode: String? = null,
+    val title: String = "",
+    val description: String? = null,
+    val gameMode: String = "",
+    val entryFee: Double = 0.0,
+    val prizePool: Double = 0.0,
+//    val maxParticipants: Int = 0,
+//    val currentParticipants: Int = 0,
+    val maxTeams: Int = 0,
+    val registeredTeams: Int = 0,
+    val status: String = "upcoming",
+    val startDate: Timestamp? = null,
+    val endDate: Timestamp? = null,
+    val rules: String? = null,
+    val image: String? = null,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null,
+    // Extra fields for app logic (optional)
+    val matchType: String? = null,
+    val map: String? = null,
+    val rewardsDistribution: List<RewardDistribution> = emptyList(),
+    val killReward: Double? = null,
+    val roomId: String? = null,
     val roomPassword: String? = null,
-    val roomInstructions: String? = null,
-    val mode: TournamentMode = TournamentMode.SQUAD,
-    val map: String = ""
+    val actualStartTime: Timestamp? = null
 ) {
     companion object {
         fun fromFirestore(
             id: String,
-            name: String,
-            description: String,
-            startDate: Timestamp,
-            endDate: Timestamp,
-            maxPlayers: Int,
-            currentPlayers: Int,
-            entryFee: Int,
-            perKillPrize: Int,
-            prizePool: Int,
-            status: List<String>,
-            isFeatured: Boolean,
-            gameId: String,
-            createdBy: String,
-            createdAt: Timestamp,
-            imageUrl: String,
-            roomCode: String? = null,
-            roomPassword: String? = null,
-            roomInstructions: String? = null,
+            title: String,
+            description: String? = null,
+            gameMode: String,
+            entryFee: Double,
+            prizePool: Double,
+//            maxParticipants: Int,
+//            currentParticipants: Int,
+            maxTeams: Int,
+            registeredTeams: Int,
+            status: String,
+            startDate: Timestamp? = null,
+            endDate: Timestamp? = null,
+            rules: String? = null,
+            image: String? = null,
+            createdAt: Timestamp? = null,
             updatedAt: Timestamp? = null,
-            rulesUrl: String? = null,
-            platform: String? = null,
-            entryType: String? = null,
-            isActive: Boolean = true,
-            mode: String? = null,
-            map: String? = null
+            // Extra fields for app logic
+            matchType: String? = null,
+            map: String? = null,
+            rewardsDistribution: List<Map<String, Any>>? = null,
+            killReward: Double? = null,
+            roomId: String? = null,
+            roomPassword: String? = null,
+            actualStartTime: Timestamp? = null
         ): Tournament {
             return Tournament(
                 id = id,
-                name = name,
+                title = title,
                 description = description,
-                startDate = startDate.toDate().time,
-                endDate = endDate.toDate().time,
-                maxPlayers = maxPlayers,
-                currentPlayers = currentPlayers,
+                gameMode = gameMode,
                 entryFee = entryFee,
-                perKillPrize = perKillPrize,
                 prizePool = prizePool,
+                maxTeams = maxTeams,
+                registeredTeams = registeredTeams,
                 status = status,
-                isFeatured = isFeatured,
-                gameId = gameId,
-                createdBy = createdBy,
-                createdAt = createdAt.toDate().time,
-                imageUrl = imageUrl,
-                roomCode = roomCode,
+                startDate = startDate,
+                endDate = endDate,
+                rules = rules,
+                image = image,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                matchType = matchType,
+                map = map,
+                rewardsDistribution = rewardsDistribution?.map { RewardDistribution.fromMap(it) } ?: emptyList(),
+                killReward = killReward,
+                roomId = roomId,
                 roomPassword = roomPassword,
-                roomInstructions = roomInstructions,
-                updatedAt = updatedAt?.toDate()?.time,
-                rulesUrl = rulesUrl,
-                platform = platform,
-                entryType = entryType,
-                isActive = isActive,
-                mode = mode?.let { TournamentMode.valueOf(it) } ?: TournamentMode.SQUAD,
-                map = map ?: ""
+                actualStartTime = actualStartTime
             )
         }
     }
@@ -98,77 +92,110 @@ data class Tournament(
     fun toDomain(): DomainTournament {
         return DomainTournament(
             id = id,
-            name = name,
-            description = description,
-            startDate = startDate,
-            endDate = endDate,
-            maxPlayers = maxPlayers,
-            currentPlayers = currentPlayers,
+            name = title,
+            description = description ?: "",
+            gameType = gameMode,
+            matchType = matchType ?: "",
+            map = map ?: "",
+            startTime = startDate?.toDate()?.time ?: 0,
             entryFee = entryFee,
-            perKillPrize = perKillPrize,
             prizePool = prizePool,
-            status = status.map { TournamentStatus.valueOf(it) },
-            isFeatured = isFeatured,
-            gameId = gameId,
-            createdBy = createdBy,
-            createdAt = createdAt,
-            imageUrl = imageUrl,
-            roomCode = roomCode,
+            maxTeams = maxTeams,
+            registeredTeams = registeredTeams,
+            status = status,
+            rules = rules,
+            bannerImage = image,
+            rewardsDistribution = rewardsDistribution.map {
+                com.cehpoint.netwin.domain.model.RewardDistribution(
+                    position = it.position,
+                    percentage = it.percentage
+                )
+            },
+            createdAt = createdAt?.toDate()?.time ?: 0,
+            killReward = killReward,
+            roomId = roomId,
             roomPassword = roomPassword,
-            roomInstructions = roomInstructions,
-            mode = mode,
-            map = map
+            actualStartTime = actualStartTime?.toDate()?.time,
+            completedAt = endDate?.toDate()?.time
         )
     }
 
     fun toFirestore(): Map<String, Any> {
         return mapOf(
-            "name" to name,
+            "title" to title,
             "description" to description,
-            "startDate" to Timestamp(startDate, 0),
-            "endDate" to Timestamp(endDate, 0),
-            "maxPlayers" to maxPlayers,
-            "currentPlayers" to currentPlayers,
+            "gameMode" to gameMode,
             "entryFee" to entryFee,
-            "perKillPrize" to perKillPrize,
             "prizePool" to prizePool,
+            "maxTeams" to maxTeams,
+            "registeredTeams" to registeredTeams,
             "status" to status,
-            "isFeatured" to isFeatured,
-            "gameId" to gameId,
-            "createdBy" to createdBy,
-            "createdAt" to Timestamp(createdAt, 0),
-            "imageUrl" to imageUrl,
-            "roomCode" to roomCode,
+            "startDate" to startDate,
+            "endDate" to endDate,
+            "rules" to rules,
+            "image" to image,
+            "createdAt" to createdAt,
+            "updatedAt" to updatedAt,
+            "matchType" to matchType,
+            "map" to map,
+            "rewardsDistribution" to rewardsDistribution.map { it.toMap() },
+            "killReward" to killReward,
+            "roomId" to roomId,
             "roomPassword" to roomPassword,
-            "roomInstructions" to roomInstructions,
-            "mode" to mode.name,
-            "map" to map
+            "actualStartTime" to actualStartTime
         ).filterValues { it != null } as Map<String, Any>
+    }
+}
+
+data class RewardDistribution(
+    val position: Int,
+    val percentage: Double
+) {
+    fun toMap(): Map<String, Any> {
+        return mapOf(
+            "position" to position,
+            "percentage" to percentage
+        )
+    }
+
+    companion object {
+        fun fromMap(map: Map<String, Any>): RewardDistribution {
+            return RewardDistribution(
+                position = (map["position"] as? Number)?.toInt() ?: 0,
+                percentage = (map["percentage"] as? Number)?.toDouble() ?: 0.0
+            )
+        }
     }
 }
 
 fun DomainTournament.toData(): Tournament {
     return Tournament(
         id = id,
-        name = name,
+        title = name,
         description = description,
-        startDate = startDate,
-        endDate = endDate,
-        maxPlayers = maxPlayers,
-        currentPlayers = currentPlayers,
+        gameMode = gameType,
         entryFee = entryFee,
-        perKillPrize = perKillPrize,
         prizePool = prizePool,
-        status = status.map { it.name },
-        isFeatured = isFeatured,
-        gameId = gameId,
-        createdBy = createdBy,
-        createdAt = createdAt,
-        imageUrl = imageUrl,
-        roomCode = roomCode,
+        maxTeams = maxTeams,
+        registeredTeams = registeredTeams,
+        status = status,
+        startDate = if (startTime != 0L) Timestamp(startTime, 0) else null,
+        endDate = if (completedAt != null) Timestamp(completedAt, 0) else null,
+        rules = rules,
+        image = bannerImage,
+        createdAt = if (createdAt != 0L) Timestamp(createdAt, 0) else null,
+        updatedAt = null,
+        matchType = matchType,
+        map = map,
+        rewardsDistribution = rewardsDistribution.map {
+            RewardDistribution(
+                position = it.position,
+                percentage = it.percentage
+            )
+        },
+        killReward = killReward,
+        roomId = roomId,
         roomPassword = roomPassword,
-        roomInstructions = roomInstructions,
-        mode = mode,
-        map = map
+        actualStartTime = if (actualStartTime != null) Timestamp(actualStartTime, 0) else null
     )
 }

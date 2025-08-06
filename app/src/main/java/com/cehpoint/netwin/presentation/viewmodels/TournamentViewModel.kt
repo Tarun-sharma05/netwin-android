@@ -1,11 +1,14 @@
 package com.cehpoint.netwin.presentation.viewmodels
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.cehpoint.netwin.data.local.DataStoreManager
 import com.cehpoint.netwin.data.remote.FirebaseManager
 import com.cehpoint.netwin.domain.model.Tournament
 import com.cehpoint.netwin.domain.model.TournamentStatus
+import com.cehpoint.netwin.domain.model.RegistrationStepData
+import com.cehpoint.netwin.domain.model.RegistrationStep
 import com.cehpoint.netwin.domain.repository.TournamentRepository
 import com.cehpoint.netwin.domain.repository.UserRepository
 import com.cehpoint.netwin.domain.repository.WalletRepository
@@ -14,11 +17,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import com.cehpoint.netwin.presentation.events.RegistrationFlowEvent
 
 data class TournamentState(
     val tournaments: List<Tournament> = emptyList(),
@@ -28,14 +36,7 @@ data class TournamentState(
     val countdowns: Map<String, String> = emptyMap() // NEW: tournamentId -> remainingTime
 )
 
-// Add this data class
-data class RegistrationStepData(
-    val inGameId: String = "",
-    val teamName: String = "",
-    val paymentMethod: String = "wallet",
-    val termsAccepted: Boolean = false,
-    val tournamentId: String = ""
-)
+// RegistrationStepData is now defined in domain.model package
 
 enum class TournamentFilter {
     ALL, UPCOMING, ONGOING, COMPLETED
@@ -54,8 +55,14 @@ class TournamentViewModel @Inject constructor(
     private val firebaseManager: FirebaseManager,
     private val userRepository: UserRepository,
     private val walletRepository: WalletRepository,
-    private val dataStoreManager: DataStoreManager
+    private val dataStoreManager: DataStoreManager,
+    private val savedStateHandle: SavedStateHandle
 ) : BaseViewModel<TournamentState, TournamentEvent>() {
+
+    companion object {
+        private const val KEY_CURRENT_STEP = "current_step"
+        private const val KEY_STEP_DATA = "step_data"
+    }
 
     // Tournament Details State
     private val _selectedTournament = MutableStateFlow<Tournament?>(null)
@@ -109,43 +116,227 @@ class TournamentViewModel @Inject constructor(
     val registrationError: StateFlow<String?> = _registrationError.asStateFlow()
 
     // Registration Flow State Management
-    private val _currentStep = MutableStateFlow(1)
-    val currentStep: StateFlow<Int> = _currentStep.asStateFlow()
+    private val _currentStep = savedStateHandle.getStateFlow(KEY_CURRENT_STEP, RegistrationStep.REVIEW)
+    val currentStep: StateFlow<RegistrationStep> = _currentStep
 
-    private val _stepData = MutableStateFlow(RegistrationStepData())
-    val stepData: StateFlow<RegistrationStepData> = _stepData.asStateFlow()
+    private val _stepData = savedStateHandle.getStateFlow(KEY_STEP_DATA, RegistrationStepData())
+    val stepData: StateFlow<RegistrationStepData> = _stepData
 
-    private val _stepError = MutableStateFlow<String?>(null)
-    val stepError: StateFlow<String?> = _stepError.asStateFlow()
+    private val _currentError = MutableStateFlow<String?>(null)
+    val currentError: StateFlow<String?> = _currentError.asStateFlow()
+
+    val isLastStep = _currentStep.map { it == RegistrationStep.CONFIRM }
+
+    // RegistrationUiState data class for exposing immutable UI state
+    data class RegistrationUiState(
+        val step: RegistrationStep,
+        val data: RegistrationStepData,
+        val error: String?,
+        val loading: Boolean
+    )
+
+    // Combine internal flows to provide single source of truth for UI
+    val registrationUiState: StateFlow<RegistrationUiState> = combine(
+        _currentStep,
+        _stepData,
+        _currentError,
+        _isRegistering
+    ) { step, data, error, loading ->
+        RegistrationUiState(
+            step = step,
+            data = data,
+            error = error,
+            loading = loading
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = RegistrationUiState(
+            step = RegistrationStep.REVIEW,
+            data = RegistrationStepData(),
+            error = null,
+            loading = false
+        )
+    )
 
 
-    // Add these functions
-    fun updateStepData(data: RegistrationStepData) {
-        _stepData.value = data
-    }
 
     fun nextStep() {
-        if (_currentStep.value < 4) {
-            _currentStep.value += 1
-            _stepError.value = null
+        val currentStepValue = _currentStep.value
+        val nextStep = when (currentStepValue) {
+            RegistrationStep.REVIEW -> RegistrationStep.PAYMENT
+            RegistrationStep.PAYMENT -> RegistrationStep.DETAILS
+            RegistrationStep.DETAILS -> RegistrationStep.CONFIRM
+            RegistrationStep.CONFIRM -> RegistrationStep.CONFIRM // Stay at last step
+        }
+        if (nextStep != currentStepValue) {
+            savedStateHandle[KEY_CURRENT_STEP] = nextStep
+            _currentError.value = null
         }
     }
 
     fun previousStep() {
-        if (_currentStep.value > 1) {
-            _currentStep.value -= 1
-            _stepError.value = null
+        val currentStepValue = _currentStep.value
+        val previousStep = when (currentStepValue) {
+            RegistrationStep.CONFIRM -> RegistrationStep.DETAILS
+            RegistrationStep.DETAILS -> RegistrationStep.PAYMENT
+            RegistrationStep.PAYMENT -> RegistrationStep.REVIEW
+            RegistrationStep.REVIEW -> RegistrationStep.REVIEW // Stay at first step
+        }
+        if (previousStep != currentStepValue) {
+            savedStateHandle[KEY_CURRENT_STEP] = previousStep
+            _currentError.value = null
         }
     }
 
     fun setStepError(error: String?) {
-        _stepError.value = error
+        _currentError.value = error
     }
 
     fun resetRegistrationFlow() {
-        _currentStep.value = 1
-        _stepData.value = RegistrationStepData()
-        _stepError.value = null
+        savedStateHandle[KEY_CURRENT_STEP] = RegistrationStep.REVIEW
+        savedStateHandle[KEY_STEP_DATA] = RegistrationStepData()
+        _currentError.value = null
+    }
+
+    /**
+     * Main event handler for RegistrationFlowEvent
+     * Handles all registration flow events with proper validation and step management
+     */
+    fun onRegistrationEvent(event: RegistrationFlowEvent) {
+        when (event) {
+            is RegistrationFlowEvent.UpdateData -> {
+                // Update step data via functional update
+                val currentData = _stepData.value
+                val updatedData = event.transform(currentData)
+                savedStateHandle[KEY_STEP_DATA] = updatedData
+                // Clear current error when data is updated
+                _currentError.value = null
+            }
+            
+            is RegistrationFlowEvent.Next -> {
+                // Validate current step before advancing
+                val currentData = _stepData.value
+                val currentStepValue = _currentStep.value
+                val validationError = validate()
+                
+                if (validationError != null) {
+                    _currentError.value = validationError
+                } else {
+                    // Clear error and move to next step
+                    _currentError.value = null
+                    moveToNextStep()
+                }
+            }
+            
+            is RegistrationFlowEvent.Previous -> {
+                // Move to previous step (no validation needed)
+                _currentError.value = null
+                moveToPreviousStep()
+            }
+            
+            is RegistrationFlowEvent.Reset -> {
+                resetRegistrationFlow()
+            }
+            
+            is RegistrationFlowEvent.Submit -> {
+                // Final validation before submission
+                val validationError = validate()
+                if (validationError != null) {
+                    _currentError.value = validationError
+                    return
+                }
+                
+                // Clear error and proceed with tournament registration
+                _currentError.value = null
+                performTournamentRegistration()
+            }
+        }
+    }
+
+    /**
+     * Validates current step data
+     * @return Error message if validation fails, null if valid
+     */
+    private fun validate(): String? {
+        val currentData = _stepData.value
+        val currentStepValue = _currentStep.value
+        return currentData.validate(currentStepValue)
+    }
+
+    /**
+     * Moves to the next step using ordered enum values
+     */
+    private fun moveToNextStep() {
+        val orderedSteps = RegistrationStep.values()
+        val currentStepValue = _currentStep.value
+        val currentIndex = orderedSteps.indexOf(currentStepValue)
+        
+        if (currentIndex < orderedSteps.size - 1) {
+            savedStateHandle[KEY_CURRENT_STEP] = orderedSteps[currentIndex + 1]
+        }
+    }
+
+    /**
+     * Moves to the previous step using ordered enum values
+     */
+    private fun moveToPreviousStep() {
+        val orderedSteps = RegistrationStep.values()
+        val currentStepValue = _currentStep.value
+        val currentIndex = orderedSteps.indexOf(currentStepValue)
+        
+        if (currentIndex > 0) {
+            savedStateHandle[KEY_CURRENT_STEP] = orderedSteps[currentIndex - 1]
+        }
+    }
+
+    /**
+     * Performs the actual tournament registration
+     */
+    private fun performTournamentRegistration() {
+        val currentData = _stepData.value
+        val userId = firebaseManager.auth.currentUser?.uid
+        val displayName = _userName.value
+        
+        if (userId == null) {
+            _registrationState.value = Result.failure(Exception("User not authenticated"))
+            return
+        }
+        
+        if (currentData.tournamentId.isBlank()) {
+            _registrationState.value = Result.failure(Exception("Tournament ID is required"))
+            return
+        }
+        
+        viewModelScope.launch {
+            _isRegistering.value = true
+            _registrationError.value = null
+            
+            try {
+                // Call existing repository method
+                val result = repository.registerForTournament(
+                    tournamentId = currentData.tournamentId,
+                    userId = userId,
+                    displayName = displayName,
+                    teamName = currentData.teamName,
+                    inGameId = currentData.inGameId
+                )
+                
+                // Map success/failure to registration state
+                _registrationState.value = result
+                
+                // On success, reset the registration flow
+                if (result.isSuccess) {
+                    resetRegistrationFlow()
+                }
+                
+            } catch (e: Exception) {
+                Log.e("TournamentViewModel", "Error during tournament registration", e)
+                _registrationState.value = Result.failure(e)
+            } finally {
+                _isRegistering.value = false
+            }
+        }
     }
 
     // NEW: Countdown job
@@ -179,6 +370,11 @@ class TournamentViewModel @Inject constructor(
 
 
     init {
+        // Log state restoration for debugging
+        Log.d("TournamentViewModel", "Initializing ViewModel")
+        Log.d("TournamentViewModel", "Restored currentStep: ${_currentStep.value}")
+        Log.d("TournamentViewModel", "Restored stepData: ${_stepData.value}")
+        
         setState(TournamentState())
         loadTournaments()
         startCountdownTimer()

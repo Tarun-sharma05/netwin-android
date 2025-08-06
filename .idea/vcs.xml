@@ -3,5 +3,7 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$/.." vcs="Git" />
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/netwin-tournaments-admin/netwin-tournament-admin" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/netwin-tournaments-app-web/netwin-tournament-app" vcs="Git" />
   </component>
 </project>

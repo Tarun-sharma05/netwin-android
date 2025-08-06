@@ -108,7 +108,7 @@ fun RegisterScreenUI(
     ) {
         // Logo
         Image(
-            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
             contentDescription = "NetWin Logo",
             modifier = Modifier
                 .size(120.dp)

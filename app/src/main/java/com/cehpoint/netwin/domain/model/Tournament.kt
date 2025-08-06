@@ -4,63 +4,76 @@ data class Tournament(
     val id: String = "",
     val name: String = "",
     val description: String = "",
-    val startDate: Long = 0,
-    val endDate: Long = 0,
-    val maxPlayers: Int = 0,
-    val currentPlayers: Int = 0,
-    val entryFee: Int = 0,
-    val perKillPrize: Int = 0,
-    val prizePool: Int = 0,
-    @Deprecated("Use computedStatus instead")
-    val status: List<TournamentStatus> = emptyList(),
-    val isFeatured: Boolean = false,
-    val gameId: String = "",
-    val createdBy: String = "",
+    val gameType: String = "",
+    val matchType: String = "",
+    val map: String = "",
+    val startTime: Long = 0,
+    val entryFee: Double = 0.0,
+    val prizePool: Double = 0.0,
+    val maxTeams: Int = 0,
+    val registeredTeams: Int = 0,
+    val status: String = "upcoming",
+    val rules: String? = null,
+    val bannerImage: String? = null,
+    val rewardsDistribution: List<RewardDistribution> = emptyList(),
     val createdAt: Long = 0,
-    val imageUrl: String = "",
-    val roomCode: String? = null,
+    val killReward: Double? = null,
+    val roomId: String? = null,
     val roomPassword: String? = null,
-    val roomInstructions: String? = null,
-    val mode: TournamentMode = TournamentMode.SQUAD,
-    val map: String = ""
+    val actualStartTime: Long? = null,
+    val completedAt: Long? = null
 ) {
+    val mode: TournamentMode
+        get() = when (matchType.uppercase()) {
+            "SOLO" -> TournamentMode.SOLO
+            "DUO" -> TournamentMode.DUO
+            "SQUAD" -> TournamentMode.SQUAD
+            "TRIO" -> TournamentMode.TRIO
+            "CUSTOM" -> TournamentMode.CUSTOM
+            else -> TournamentMode.SQUAD
+        }
     val computedStatus: TournamentStatus
         get() {
             val now = System.currentTimeMillis()
             val debugInfo = """
                 Tournament: $name
                 Current time: $now (${java.util.Date(now)})
-                Start date: $startDate (${java.util.Date(startDate)})
-                End date: $endDate (${java.util.Date(endDate)})
-                Room code: $roomCode
-                Time diff: ${startDate - now}
+                Start time: $startTime (${java.util.Date(startTime)})
+                Completed at: $completedAt (${completedAt?.let { java.util.Date(it) }})
+                Room ID: $roomId
+                Time diff: ${startTime - now}
             """.trimIndent()
             android.util.Log.d("TournamentStatus", debugInfo)
             
             return when {
-                now < startDate - 10 * 60 * 1000 -> {
+                now < startTime - 10 * 60 * 1000 -> {
                     android.util.Log.d("TournamentStatus", "$name -> UPCOMING")
                     TournamentStatus.UPCOMING
                 }
-                now in (startDate - 10 * 60 * 1000) until startDate -> {
+                now in (startTime - 10 * 60 * 1000) until startTime -> {
                     android.util.Log.d("TournamentStatus", "$name -> STARTS_SOON")
                     TournamentStatus.STARTS_SOON
                 }
-                roomCode != null && now >= startDate && now < endDate -> {
+                roomId != null && now >= startTime && completedAt == null -> {
                     android.util.Log.d("TournamentStatus", "$name -> ROOM_OPEN")
                     TournamentStatus.ROOM_OPEN
                 }
-                now in startDate until endDate -> {
+                now in startTime until (completedAt ?: (startTime + 24 * 60 * 60 * 1000)) -> {
                     android.util.Log.d("TournamentStatus", "$name -> ONGOING")
                     TournamentStatus.ONGOING
                 }
                 else -> {
                     android.util.Log.d("TournamentStatus", "$name -> COMPLETED")
                     TournamentStatus.COMPLETED
-                }
             }
         }
 }
+}
+
+data class RewardDistribution(
+    val position: Int,
+    val percentage: Double
+)
 
 enum class TournamentStatus {
     UPCOMING,

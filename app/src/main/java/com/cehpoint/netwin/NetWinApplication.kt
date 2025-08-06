@@ -24,8 +24,8 @@ class NetWinApplication : Application() {
                 Log.d("NetWinApplication", "Thread ID: ${Thread.currentThread().id}")
                 
                 try {
-                        // Initialize Firebase
-                        FirebaseApp.initializeApp(this)
+                // Initialize Firebase
+                FirebaseApp.initializeApp(this)
                         Log.d("NetWinApplication", "Firebase initialized")
                         
                         // Configure FirebaseAuth persistence

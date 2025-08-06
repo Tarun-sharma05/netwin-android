@@ -1,10 +1,13 @@
 package com.cehpoint.netwin.data.repository
 
+import android.R.attr.name
 import android.util.Log
 import com.cehpoint.netwin.ResultState
 import com.cehpoint.netwin.data.model.KycStatus
+import com.cehpoint.netwin.data.model.User as DataUser
 import com.cehpoint.netwin.domain.model.User
 import com.cehpoint.netwin.domain.repository.UserRepository
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -22,7 +25,66 @@ class UserRepositoryImpl @Inject constructor(
 
     private val usersCollection = firebaseFirestore.collection("users")
 
+    // Convert domain User to data User
+    private fun User.toDataUser(): DataUser {
+        return DataUser(
+            id = id,
+            username = username,
+            displayName = displayName ?: "", // domain has displayName, data has name
+            email = email,
+            phoneNumber = phoneNumber,
+            photoURL = profilePictureUrl,
+            walletBalance = walletBalance,
+            isVerified = false, // default value
+            kycStatus = kycStatus,
+            kycDocuments = null, // default value
+            status = "active", // default value
+            createdAt = createdAt?.let { Timestamp(it, 0) },
+            lastLogin = lastLoginAt?.let { Timestamp(it, 0) },
+            location = country // domain has country, data has location
+        )
+    }
 
+    // Convert data User to domain User
+    private fun DataUser.toDomainUser(): User {
+        return User(
+            id = id,
+            displayName = displayName ?: "", // data has name, domain has displayName
+            username = username,
+            email = email,
+            country = location ?: "", // data has location, domain has country
+            currency = "", // default value
+            walletBalance = walletBalance,
+            profilePictureUrl = photoURL ?: "",
+            role = "user", // default value
+            createdAt = createdAt?.toDate()?.time,
+//            createdAt = this.createdAt?.let { Timestamp(it, 0) },
+            updatedAt = null, // default value
+            lastLoginAt = lastLogin?.toDate()?.time,
+//            lastLoginAt = this.lastLogin?.let { Timestamp(it, 0) },
+            loginCount = 0, // default value
+            phoneNumber = phoneNumber ?: "",
+            gameId = "", // default value
+            gameMode = "", // default value
+            matchesPlayed = 0, // default value
+            matchesWon = 0, // default value
+            totalKills = 0, // default value
+            totalEarnings = 0.0, // default value
+            tournamentsJoined = 0, // default value
+            kycStatus = kycStatus,
+            kycVerifiedAt = null, // default value
+            kycDocumentType = "", // default value
+            kycDocumentNumber = "", // default value
+            kycRejectedReason = "", // default value
+            isBanned = false, // default value
+            banReason = "", // default value
+            adminNotes = "", // default value
+            notificationsEnabled = true, // default value
+            preferredLanguage = "en", // default value
+            deviceType = "Android", // default value
+            appVersion = "" // default value
+        )
+    }
 
     override suspend fun createUser(user: User): Result<User> {
         return try {
@@ -35,12 +97,14 @@ class UserRepositoryImpl @Inject constructor(
                 return Result.failure(Exception("User ID cannot be blank"))
             }
 
+            val dataUser = user.toDataUser()
+
             // Create the document with the user's ID
             val docRef = usersCollection.document(user.id)
             Log.d("UserRepositoryImpl", "Created document reference with ID: ${docRef.id}")
 
             // Set the user data
-            docRef.set(user).await()
+            docRef.set(dataUser).await()
             Log.d("UserRepositoryImpl", "User document created successfully")
 
             // Verify the document was created
@@ -70,16 +134,16 @@ class UserRepositoryImpl @Inject constructor(
         Log.d("UserRepositoryImpl", "getUser - Firestore document fetched: exists = ${docSnapshot.exists()}")
         Log.d("UserRepositoryImpl", "getUser - Document data: ${docSnapshot.data}")
         
-        val user = docSnapshot.toObject(User::class.java)
-        Log.d("UserRepositoryImpl", "getUser - Parsed user object: $user")
+        val dataUser = docSnapshot.toObject(DataUser::class.java)
+        Log.d("UserRepositoryImpl", "getUser - Parsed user object: $dataUser")
         
-        if (user != null) {
+        if (dataUser != null) {
+            val user = dataUser.toDomainUser()
             Log.d("UserRepositoryImpl", "getUser - User found successfully")
             Log.d("UserRepositoryImpl", "getUser - User ID: ${user.id}")
             Log.d("UserRepositoryImpl", "getUser - User email: ${user.email}")
             Log.d("UserRepositoryImpl", "getUser - User username: ${user.username}")
             Log.d("UserRepositoryImpl", "getUser - User displayName: ${user.displayName}")
-            Log.d("UserRepositoryImpl", "getUser - User country: ${user.country}")
             Log.d("UserRepositoryImpl", "getUser - User kycStatus: ${user.kycStatus}")
             Log.d("UserRepositoryImpl", "=== getUser COMPLETED SUCCESS ===")
             Result.success(user)
@@ -97,14 +161,16 @@ class UserRepositoryImpl @Inject constructor(
     override fun getUserFlow(userId: String): Flow<User?> = flow {
         try {
             val docSnapshot = usersCollection.document(userId).get().await()
-            emit(docSnapshot.toObject(User::class.java))
+            val dataUser = docSnapshot.toObject(DataUser::class.java)
+            emit(dataUser?.toDomainUser())
         } catch (e: Exception) {
             emit(null)
         }
     }
 
     override suspend fun updateUser(user: User): Result<User> = try {
-        usersCollection.document(user.id).set(user).await()
+        val dataUser = user.toDataUser()
+        usersCollection.document(user.id).set(dataUser).await()
         Result.success(user)
     } catch (e: Exception) {
         Result.failure(e)
@@ -130,7 +196,8 @@ class UserRepositoryImpl @Inject constructor(
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .get()
                 .await()
-            val users = snapshot.toObjects(User::class.java)
+            val dataUsers = snapshot.toObjects(DataUser::class.java)
+            val users = dataUsers.map { it.toDomainUser() }
             emit(users)
         } catch (e: Exception) {
             emit(emptyList())
@@ -142,8 +209,8 @@ class UserRepositoryImpl @Inject constructor(
             .whereEqualTo("email", email)
             .get()
             .await()
-        val user = snapshot.documents.firstOrNull()?.toObject(User::class.java)
-        Result.success(user)
+        val dataUser = snapshot.documents.firstOrNull()?.toObject(DataUser::class.java)
+        Result.success(dataUser?.toDomainUser())
     } catch (e: Exception) {
         Result.failure(e)
     }

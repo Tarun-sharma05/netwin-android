@@ -129,7 +129,7 @@ fun ProfileSetupScreenUI(
                 )
             } else {
                 Image(
-                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                    painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                     contentDescription = "Default Profile Picture",
                     modifier = Modifier.size(60.dp)
                 )

@@ -9,7 +9,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.*
@@ -28,7 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,6 +49,7 @@ import com.cehpoint.netwin.domain.model.TournamentMode
 import com.cehpoint.netwin.presentation.viewmodels.TournamentEvent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
+import com.cehpoint.netwin.presentation.navigation.TournamentRegistration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,13 +155,13 @@ private fun TournamentDetailsContent(
     var formError by remember { mutableStateOf<String?>(null) }
     val showKycRequiredDialog by viewModel.showKycRequiredDialog.collectAsState()
 
-    Log.d("TournamentDetailsContent", "Document ID ${tournamentId}, TournamentName:  ${tournament.name}, Start Date: ${tournament.startDate}, End Date: ${tournament.endDate}")
-    LaunchedEffect(tournament.startDate, tournament.endDate) {
+    Log.d("TournamentDetailsContent", "Document ID ${tournamentId}, TournamentName:  ${tournament.name}, Start Time: ${tournament.startTime}, Completed At: ${tournament.completedAt}")
+    LaunchedEffect(tournament.startTime, tournament.completedAt) {
         while (true) {
             val currentTime = System.currentTimeMillis()
             remainingTime = when (tournament.computedStatus) {
                 TournamentStatus.UPCOMING -> {
-                    val timeDiff = tournament.startDate - currentTime
+                    val timeDiff = tournament.startTime - currentTime
                     val hours = timeDiff / (60 * 60 * 1000)
                     val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
                     val seconds = (timeDiff % (60 * 1000)) / 1000
@@ -173,7 +172,7 @@ private fun TournamentDetailsContent(
                     }
                 }
                 TournamentStatus.ONGOING -> {
-                    val timeDiff = tournament.endDate - currentTime
+                    val timeDiff = (tournament.completedAt ?: 0L) - currentTime
                     val hours = timeDiff / (60 * 60 * 1000)
                     val minutes = (timeDiff % (60 * 60 * 1000)) / (60 * 1000)
                     val seconds = (timeDiff % (60 * 1000)) / 1000
@@ -225,7 +224,7 @@ private fun TournamentDetailsContent(
                 .height(250.dp)
         ) {
             AsyncImage(
-                model = tournament.imageUrl,
+                model = tournament.bannerImage,
                 contentDescription = "Tournament Poster",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
@@ -315,7 +314,7 @@ private fun TournamentDetailsContent(
                     )
                 }
 
-                if (tournament.computedStatus == TournamentStatus.ROOM_OPEN && tournament.roomCode != null) {
+                if (tournament.computedStatus == TournamentStatus.ROOM_OPEN && tournament.roomId != null) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -336,7 +335,7 @@ private fun TournamentDetailsContent(
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Room Code: ${tournament.roomCode}",
+                                    text = "Room Code: ${tournament.roomId}",
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 20.sp
@@ -344,7 +343,7 @@ private fun TournamentDetailsContent(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 IconButton(onClick = {
                                     coroutineScope.launch {
-                                        clipboard.setText(AnnotatedString(tournament.roomCode))
+                                        clipboard.setText(AnnotatedString(tournament.roomId))
                                         snackbarHostState.showSnackbar("Room code copied!")
                                     }
                                 }) {
@@ -370,22 +369,6 @@ private fun TournamentDetailsContent(
                                         Icon(Icons.Default.ContentCopy, contentDescription = "Copy Password", tint = Color.White)
                                     }
                                 }
-                            }
-                            if (!tournament.roomInstructions.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = tournament.roomInstructions,
-                                    color = Color.White.copy(alpha = 0.95f),
-                                    fontSize = 14.sp,
-                                    fontStyle = FontStyle.Italic
-                                )
-                            } else {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Please join the room in-game using the above code. Follow the instructions provided by the admin.",
-                                    color = Color.White.copy(alpha = 0.85f),
-                                    fontSize = 14.sp
-                                )
                             }
                         }
                     }
@@ -427,7 +410,7 @@ private fun TournamentDetailsContent(
                     )
                     PrizeInfo(
                         label = "Per Kill",
-                        value = "₹${tournament.perKillPrize}",
+                        value = "₹${tournament.killReward?.toInt() ?: 0}",
                         icon = Icons.Default.EmojiEvents,
                         color = Color.Yellow
                     )
@@ -455,7 +438,7 @@ private fun TournamentDetailsContent(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    InfoRow("Players", "${tournament.currentPlayers}/${tournament.maxPlayers}")
+                    InfoRow("Teams", "${tournament.registeredTeams}/${tournament.maxTeams}")
                     InfoRow("Map", tournament.map.ifBlank { "Unknown" })
                     InfoRow("Game Mode", when (tournament.mode) {
                         TournamentMode.SOLO -> "Solo"
@@ -464,8 +447,8 @@ private fun TournamentDetailsContent(
                         TournamentMode.TRIO -> "Trio"
                         TournamentMode.CUSTOM -> "Custom"
                     })
-                    InfoRow("Start Date", formatDate(tournament.startDate))
-                    InfoRow("End Date", formatDate(tournament.endDate))
+                    InfoRow("Start Date", formatDate(tournament.startTime))
+                    InfoRow("End Date", formatDate(tournament.completedAt))
                 }
             }
 
@@ -540,14 +523,13 @@ private fun TournamentDetailsContent(
             // Join/Register Button
             Button(
                 onClick = {
-                    if (user != null && registrationStatus == false) {
-                        showRegistrationDialog = true
-                    } else if (user == null) {
-                        Log.e("TournamentDetailsScreen", "User not logged in. Cannot register.")
-                        Toast.makeText(context, "You must be logged in to register.", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Log.d("TournamentDetailsScreen", "User already registered or status unknown. Button disabled.")
-                    }
+                    // Navigate to registration flow instead of showing dialog
+                    navController.navigate(
+                        com.cehpoint.netwin.presentation.navigation.TournamentRegistration(
+                            tournamentId = tournamentId,
+                            stepIndex = 1
+                        )
+                    )
                 },
                 enabled = registrationStatus == false,
                 modifier = Modifier
@@ -561,7 +543,7 @@ private fun TournamentDetailsContent(
                 Text(
                     text = when {
                         registrationStatus == true -> "Registered"
-                        registrationStatus == false -> if (tournament.computedStatus == TournamentStatus.ONGOING) "Join Now" else "Register"
+                        registrationStatus == false -> "Register Now"
                         else -> "Checking..."
                     },
                     style = MaterialTheme.typography.titleMedium,
@@ -570,62 +552,6 @@ private fun TournamentDetailsContent(
                 )
             }
 
-            if (showRegistrationDialog) {
-                AlertDialog(
-                    onDismissRequest = { showRegistrationDialog = false },
-                    title = { Text("Tournament Registration") },
-                    text = {
-                        Column {
-                            OutlinedTextField(
-                                value = inGameId,
-                                onValueChange = { inGameId = it },
-                                label = { Text("In-game ID") },
-                                singleLine = true,
-                                isError = formError != null && inGameId.isBlank()
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = teamName,
-                                onValueChange = { teamName = it },
-                                label = { Text("Team Name") },
-                                singleLine = true,
-                                isError = formError != null && (tournament.mode.name == "SQUAD" && teamName.isBlank())
-                            )
-                            if (formError != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(formError ?: "", color = Color.Red)
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        Button(onClick = {
-                            formError = null
-                            if (inGameId.isBlank()) {
-                                formError = "In-game ID is required."
-                                return@Button
-                            }
-                            if (tournament.mode.name == "SQUAD" && teamName.isBlank()) {
-                                formError = "Team name is required for squad tournaments."
-                                return@Button
-                            }
-                            viewModel.handleEvent(
-                                TournamentEvent.RegisterForTournament(
-                                    tournament = tournament,
-                                    inGameId = inGameId
-                                )
-                            )
-                            showRegistrationDialog = false
-                        }) {
-                            Text("Submit")
-                        }
-                    },
-                    dismissButton = {
-                        OutlinedButton(onClick = { showRegistrationDialog = false }) {
-                            Text("Cancel")
-                        }
-                    }
-                )
-            }
 
             if (showKycRequiredDialog) {
                 AlertDialog(
@@ -734,7 +660,8 @@ private fun RuleItem(rule: String) {
     }
 }
 
-private fun formatDate(timestamp: Long): String {
+private fun formatDate(timestamp: Long?): String {
+    if (timestamp == null) return "TBD"
     val date = java.util.Date(timestamp)
     val format = java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.getDefault())
     return format.format(date)
