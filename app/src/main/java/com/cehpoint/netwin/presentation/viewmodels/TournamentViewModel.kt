@@ -27,6 +27,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import com.cehpoint.netwin.presentation.events.RegistrationFlowEvent
+import com.cehpoint.netwin.utils.NetworkStateMonitor
+import com.cehpoint.netwin.utils.RetryUtils
 
 data class TournamentState(
     val tournaments: List<Tournament> = emptyList(),
@@ -56,7 +58,8 @@ class TournamentViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val walletRepository: WalletRepository,
     private val dataStoreManager: DataStoreManager,
-    private val savedStateHandle: SavedStateHandle
+    private val savedStateHandle: SavedStateHandle,
+    private val networkStateMonitor: NetworkStateMonitor
 ) : BaseViewModel<TournamentState, TournamentEvent>() {
 
     companion object {
@@ -127,12 +130,26 @@ class TournamentViewModel @Inject constructor(
 
     val isLastStep = _currentStep.map { it == RegistrationStep.CONFIRM }
 
+    // Network State Monitoring
+    private val _networkAvailable = MutableStateFlow(true)
+    val networkAvailable: StateFlow<Boolean> = _networkAvailable.asStateFlow()
+
+    // Retry State Management
+    private val _retryCount = MutableStateFlow(0)
+    val retryCount: StateFlow<Int> = _retryCount.asStateFlow()
+
+    private val _isRetrying = MutableStateFlow(false)
+    val isRetrying: StateFlow<Boolean> = _isRetrying.asStateFlow()
+
     // RegistrationUiState data class for exposing immutable UI state
     data class RegistrationUiState(
         val step: RegistrationStep,
         val data: RegistrationStepData,
         val error: String?,
-        val loading: Boolean
+        val loading: Boolean,
+        val networkAvailable: Boolean = true,
+        val retryCount: Int = 0,
+        val isRetrying: Boolean = false
     )
 
     // Combine internal flows to provide single source of truth for UI
@@ -140,13 +157,27 @@ class TournamentViewModel @Inject constructor(
         _currentStep,
         _stepData,
         _currentError,
-        _isRegistering
-    ) { step, data, error, loading ->
+        _isRegistering,
+        _networkAvailable,
+        _retryCount,
+        _isRetrying
+    ) { values ->
+        val step = values[0] as RegistrationStep
+        val data = values[1] as RegistrationStepData
+        val error = values[2] as String?
+        val loading = values[3] as Boolean
+        val networkAvailable = values[4] as Boolean
+        val retryCount = values[5] as Int
+        val isRetrying = values[6] as Boolean
+        
         RegistrationUiState(
             step = step,
             data = data,
             error = error,
-            loading = loading
+            loading = loading || isRetrying,
+            networkAvailable = networkAvailable,
+            retryCount = retryCount,
+            isRetrying = isRetrying
         )
     }.stateIn(
         scope = viewModelScope,
@@ -155,7 +186,10 @@ class TournamentViewModel @Inject constructor(
             step = RegistrationStep.REVIEW,
             data = RegistrationStepData(),
             error = null,
-            loading = false
+            loading = false,
+            networkAvailable = true,
+            retryCount = 0,
+            isRetrying = false
         )
     )
 
@@ -204,25 +238,38 @@ class TournamentViewModel @Inject constructor(
      * Handles all registration flow events with proper validation and step management
      */
     fun onRegistrationEvent(event: RegistrationFlowEvent) {
+        Log.d("TournamentViewModel", "=== onRegistrationEvent ENTRY ===")
+        Log.d("TournamentViewModel", "Event type: ${event::class.simpleName}")
+        Log.d("TournamentViewModel", "Current step: ${_currentStep.value}")
+        Log.d("TournamentViewModel", "Current data: inGameId='${_stepData.value.inGameId}', teamName='${_stepData.value.teamName}', paymentMethod='${_stepData.value.paymentMethod}', termsAccepted=${_stepData.value.termsAccepted}")
+        
         when (event) {
             is RegistrationFlowEvent.UpdateData -> {
+                Log.d("TournamentViewModel", "Processing UpdateData event")
                 // Update step data via functional update
                 val currentData = _stepData.value
                 val updatedData = event.transform(currentData)
                 savedStateHandle[KEY_STEP_DATA] = updatedData
+                Log.d("TournamentViewModel", "Data updated: ${updatedData}")
                 // Clear current error when data is updated
                 _currentError.value = null
+                Log.d("TournamentViewModel", "Error cleared due to data update")
             }
             
             is RegistrationFlowEvent.Next -> {
+                Log.d("TournamentViewModel", "Processing Next event - VALIDATING BEFORE ADVANCE")
                 // Validate current step before advancing
                 val currentData = _stepData.value
                 val currentStepValue = _currentStep.value
+                Log.d("TournamentViewModel", "About to call validate() for step: $currentStepValue")
                 val validationError = validate()
+                Log.d("TournamentViewModel", "Validation result: ${if (validationError == null) "PASSED" else "FAILED with error: '$validationError'"}")
                 
                 if (validationError != null) {
+                    Log.e("TournamentViewModel", "VALIDATION FAILED - Setting error and blocking navigation")
                     _currentError.value = validationError
                 } else {
+                    Log.d("TournamentViewModel", "VALIDATION PASSED - Proceeding to next step")
                     // Clear error and move to next step
                     _currentError.value = null
                     moveToNextStep()
@@ -230,28 +277,36 @@ class TournamentViewModel @Inject constructor(
             }
             
             is RegistrationFlowEvent.Previous -> {
+                Log.d("TournamentViewModel", "Processing Previous event - No validation required")
                 // Move to previous step (no validation needed)
                 _currentError.value = null
                 moveToPreviousStep()
             }
             
             is RegistrationFlowEvent.Reset -> {
+                Log.d("TournamentViewModel", "Processing Reset event")
                 resetRegistrationFlow()
             }
             
             is RegistrationFlowEvent.Submit -> {
-                // Final validation before submission
-                val validationError = validate()
+                Log.d("TournamentViewModel", "Processing Submit event - FINAL COMPREHENSIVE VALIDATION")
+                // Final comprehensive validation of all steps before submission
+                val currentData = _stepData.value
+                val validationError = currentData.validateAll()
+                Log.d("TournamentViewModel", "Final validateAll() result: ${if (validationError == null) "PASSED" else "FAILED with error: '$validationError'"}")
                 if (validationError != null) {
+                    Log.e("TournamentViewModel", "FINAL COMPREHENSIVE VALIDATION FAILED - Blocking submission")
                     _currentError.value = validationError
                     return
                 }
                 
+                Log.d("TournamentViewModel", "FINAL COMPREHENSIVE VALIDATION PASSED - Proceeding with registration")
                 // Clear error and proceed with tournament registration
                 _currentError.value = null
                 performTournamentRegistration()
             }
         }
+        Log.d("TournamentViewModel", "=== onRegistrationEvent EXIT ===")
     }
 
     /**
@@ -259,9 +314,19 @@ class TournamentViewModel @Inject constructor(
      * @return Error message if validation fails, null if valid
      */
     private fun validate(): String? {
+        Log.d("TournamentViewModel", "=== validate() ENTRY ===")
         val currentData = _stepData.value
         val currentStepValue = _currentStep.value
-        return currentData.validate(currentStepValue)
+        Log.d("TournamentViewModel", "Validating step: $currentStepValue")
+        Log.d("TournamentViewModel", "Data being validated: $currentData")
+        Log.d("TournamentViewModel", "About to call RegistrationStepData.validate($currentStepValue)")
+        
+        val validationResult = currentData.validate(currentStepValue)
+        
+        Log.d("TournamentViewModel", "RegistrationStepData.validate() returned: ${if (validationResult == null) "null (VALID)" else "'$validationResult' (INVALID)"}")
+        Log.d("TournamentViewModel", "=== validate() EXIT ===")
+        
+        return validationResult
     }
 
     /**
@@ -291,7 +356,7 @@ class TournamentViewModel @Inject constructor(
     }
 
     /**
-     * Performs the actual tournament registration
+     * Performs the actual tournament registration with retry logic and network monitoring
      */
     private fun performTournamentRegistration() {
         val currentData = _stepData.value
@@ -311,32 +376,142 @@ class TournamentViewModel @Inject constructor(
         viewModelScope.launch {
             _isRegistering.value = true
             _registrationError.value = null
+            _retryCount.value = 0
+            
+            // Monitor network state during registration
+            val networkJob = launch {
+                networkStateMonitor.observeNetworkState().collect { isConnected ->
+                    _networkAvailable.value = isConnected
+                    Log.d("TournamentViewModel", "Network state changed: $isConnected")
+                    
+                    if (!isConnected) {
+                        Log.w("TournamentViewModel", "Network disconnected during registration")
+                        _currentError.value = "Network connection lost. Retrying when connection is restored..."
+                    } else if (_currentError.value?.contains("Network") == true) {
+                        _currentError.value = null
+                    }
+                }
+            }
             
             try {
-                // Call existing repository method
-                val result = repository.registerForTournament(
-                    tournamentId = currentData.tournamentId,
-                    userId = userId,
-                    displayName = displayName,
-                    teamName = currentData.teamName,
-                    inGameId = currentData.inGameId
-                )
+                // For business rule errors (like registration closed), don't retry
+                // Only retry for network/timeout issues
+                var lastException: Exception? = null
+                var shouldRetry = true
+                var attemptCount = 0
                 
-                // Map success/failure to registration state
-                _registrationState.value = result
-                
-                // On success, reset the registration flow
-                if (result.isSuccess) {
-                    resetRegistrationFlow()
+                while (shouldRetry && attemptCount < 3) {
+                    attemptCount++
+                    _retryCount.value = attemptCount
+                    _isRetrying.value = attemptCount > 1
+                    
+                    Log.d("TournamentViewModel", "Registration attempt $attemptCount")
+                    
+                    try {
+                        // Check network availability before each attempt
+                        if (!networkStateMonitor.isNetworkAvailable()) {
+                            throw Exception("Network unavailable")
+                        }
+                        
+                        // Call repository method with timeout
+                        val registrationResult = RetryUtils.withTimeout(10000L) {
+                            repository.registerForTournament(
+                                tournamentId = currentData.tournamentId,
+                                userId = userId,
+                                displayName = displayName,
+                                teamName = currentData.teamName,
+                                inGameId = currentData.inGameId
+                            )
+                        }
+                        
+                        // Check if the Result itself failed and throw if needed
+                        registrationResult.getOrThrow()
+                        
+                        // If we reach here, registration was successful
+                        shouldRetry = false
+                        lastException = null
+                        
+                    } catch (e: Exception) {
+                        lastException = e
+                        Log.w("TournamentViewModel", "Registration attempt $attemptCount failed: ${e.message}")
+                        
+                        // Don't retry for business rule errors
+                        shouldRetry = when {
+                            e.message?.contains("Registration is closed", ignoreCase = true) == true -> false
+                            e.message?.contains("already registered", ignoreCase = true) == true -> false
+                            e.message?.contains("insufficient", ignoreCase = true) == true -> false
+                            e.message?.contains("PERMISSION_DENIED", ignoreCase = true) == true -> false
+                            e.message?.contains("Missing or insufficient permissions", ignoreCase = true) == true -> false
+                            e.message?.contains("network", ignoreCase = true) == true -> attemptCount < 3
+                            e.message?.contains("timeout", ignoreCase = true) == true -> attemptCount < 3
+                            RetryUtils.isRetryableException(e) -> attemptCount < 3
+                            else -> false // Unknown errors don't retry
+                        }
+                        
+                        if (shouldRetry && attemptCount < 3) {
+                            Log.d("TournamentViewModel", "Will retry registration in ${1000L * attemptCount}ms")
+                            delay(1000L * attemptCount) // Exponential backoff
+                        }
+                    }
                 }
                 
+                // If we have an exception, throw it
+                if (lastException != null) {
+                    throw lastException
+                }
+                
+                // If we reach here, registration was successful
+                Log.d("TournamentViewModel", "Registration successful after ${_retryCount.value} attempts")
+                _registrationState.value = Result.success(Unit)
+                resetRegistrationFlow()
+                _retryCount.value = 0
+                
             } catch (e: Exception) {
-                Log.e("TournamentViewModel", "Error during tournament registration", e)
+                Log.e("TournamentViewModel", "Registration failed after ${_retryCount.value} attempts: ${e.message}", e)
+                
+                // Set appropriate error message based on exception type
+                val errorMessage = when {
+                    e.message?.contains("Registration is closed", ignoreCase = true) == true ->
+                        "Registration is closed for this tournament"
+                    e.message?.contains("PERMISSION_DENIED", ignoreCase = true) == true ->
+                        "Permission denied. Please check your account permissions or contact support."
+                    e.message?.contains("Missing or insufficient permissions", ignoreCase = true) == true ->
+                        "Permission denied. Please check your account permissions or contact support."
+                    e.message?.contains("network", ignoreCase = true) == true ->
+                        "Network error. Please check your connection and try again."
+                    e.message?.contains("timeout", ignoreCase = true) == true ->
+                        "Request timed out. Please try again."
+                    e.message?.contains("insufficient", ignoreCase = true) == true ->
+                        "Insufficient wallet balance for this tournament"
+                    e.message?.contains("already registered", ignoreCase = true) == true ->
+                        "You are already registered for this tournament"
+                    RetryUtils.isRetryableException(e) ->
+                        "Connection issue. Please try again."
+                    else -> e.message ?: "Registration failed. Please try again."
+                }
+                
+                Log.d("TournamentViewModel", "Setting error message: $errorMessage")
+                _currentError.value = errorMessage
                 _registrationState.value = Result.failure(e)
+                
             } finally {
+                networkJob.cancel() // Stop network monitoring
                 _isRegistering.value = false
+                _isRetrying.value = false
+                
+                Log.d("TournamentViewModel", "Registration process completed")
             }
         }
+    }
+    
+    /**
+     * Retry registration manually (for UI retry buttons)
+     */
+    fun retryRegistration() {
+        Log.d("TournamentViewModel", "Manual retry registration triggered")
+        _currentError.value = null
+        _retryCount.value = 0
+        performTournamentRegistration()
     }
 
     // NEW: Countdown job

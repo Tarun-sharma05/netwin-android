@@ -144,10 +144,15 @@ dependencies {
     // If you want to additionally use the CameraX View class
     implementation("androidx.camera:camera-view:${camerax_version}")
     testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.4")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:6.0.0")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:4.0.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.4")
+    
+    // Android instrumentation test dependencies
+    androidTestImplementation("com.google.truth:truth:1.1.3")
+    androidTestImplementation("io.mockk:mockk-android:1.13.4")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.4")
 
     implementation("androidx.core:core-splashscreen:1.0.1")
 

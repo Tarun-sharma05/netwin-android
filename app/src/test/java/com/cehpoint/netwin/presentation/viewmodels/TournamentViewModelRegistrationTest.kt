@@ -43,6 +43,7 @@ class TournamentViewModelRegistrationTest {
     private lateinit var firebaseManager: FirebaseManager
     private lateinit var firebaseAuth: FirebaseAuth
     private lateinit var firebaseUser: FirebaseUser
+    private lateinit var networkStateMonitor: com.cehpoint.netwin.utils.NetworkStateMonitor
 
     private val testDispatcher = StandardTestDispatcher()
 
@@ -57,6 +58,7 @@ class TournamentViewModelRegistrationTest {
         firebaseManager = mock()
         firebaseAuth = mock()
         firebaseUser = mock()
+        networkStateMonitor = mock()
 
         // Setup mocks
         whenever(firebaseManager.auth).thenReturn(firebaseAuth)
@@ -64,6 +66,8 @@ class TournamentViewModelRegistrationTest {
         whenever(firebaseUser.uid).thenReturn("test_user")
         whenever(walletRepository.getWalletBalance(any())).thenReturn(flowOf(100.0))
         whenever(dataStoreManager.userName).thenReturn(flowOf("TestUser"))
+        whenever(networkStateMonitor.observeNetworkState()).thenReturn(flowOf(true))
+        whenever(networkStateMonitor.isNetworkAvailable()).thenReturn(true)
 
         viewModel = TournamentViewModel(
             repository = tournamentRepository,
@@ -71,7 +75,8 @@ class TournamentViewModelRegistrationTest {
             userRepository = userRepository,
             walletRepository = walletRepository,
             dataStoreManager = dataStoreManager,
-            savedStateHandle = savedStateHandle
+            savedStateHandle = savedStateHandle,
+            networkStateMonitor = networkStateMonitor
         )
     }
 

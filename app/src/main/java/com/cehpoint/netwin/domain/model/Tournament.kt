@@ -21,7 +21,10 @@ data class Tournament(
     val roomId: String? = null,
     val roomPassword: String? = null,
     val actualStartTime: Long? = null,
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+    val country: String? = null,
+    val registrationStartTime: Long? = null,
+    val registrationEndTime: Long? = null
 ) {
     val mode: TournamentMode
         get() = when (matchType.uppercase()) {
@@ -44,30 +47,34 @@ data class Tournament(
                 Time diff: ${startTime - now}
             """.trimIndent()
             android.util.Log.d("TournamentStatus", debugInfo)
-            
+
             return when {
                 now < startTime - 10 * 60 * 1000 -> {
                     android.util.Log.d("TournamentStatus", "$name -> UPCOMING")
                     TournamentStatus.UPCOMING
                 }
+
                 now in (startTime - 10 * 60 * 1000) until startTime -> {
                     android.util.Log.d("TournamentStatus", "$name -> STARTS_SOON")
                     TournamentStatus.STARTS_SOON
                 }
+
                 roomId != null && now >= startTime && completedAt == null -> {
                     android.util.Log.d("TournamentStatus", "$name -> ROOM_OPEN")
                     TournamentStatus.ROOM_OPEN
                 }
+
                 now in startTime until (completedAt ?: (startTime + 24 * 60 * 60 * 1000)) -> {
                     android.util.Log.d("TournamentStatus", "$name -> ONGOING")
                     TournamentStatus.ONGOING
                 }
+
                 else -> {
                     android.util.Log.d("TournamentStatus", "$name -> COMPLETED")
                     TournamentStatus.COMPLETED
+                }
             }
         }
-}
 }
 
 data class RewardDistribution(
@@ -85,4 +92,4 @@ enum class TournamentStatus {
 
 enum class TournamentMode {
     SOLO, DUO, SQUAD, TRIO, CUSTOM
-} 
+}

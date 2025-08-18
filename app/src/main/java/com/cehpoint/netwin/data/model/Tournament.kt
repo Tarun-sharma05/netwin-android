@@ -12,6 +12,8 @@ data class Tournament(
     val title: String = "",
     val description: String? = null,
     val gameMode: String = "",
+    // New: platform (BGMI/PUBG/FF etc.)
+    val gameType: String? = null,
     val entryFee: Double = 0.0,
     val prizePool: Double = 0.0,
 //    val maxParticipants: Int = 0,
@@ -28,6 +30,11 @@ data class Tournament(
     // Extra fields for app logic (optional)
     val matchType: String? = null,
     val map: String? = null,
+    // New: country code/name
+    val country: String? = null,
+    // New: registration window
+    val registrationStartTime: Timestamp? = null,
+    val registrationEndTime: Timestamp? = null,
     val rewardsDistribution: List<RewardDistribution> = emptyList(),
     val killReward: Double? = null,
     val roomId: String? = null,
@@ -40,6 +47,7 @@ data class Tournament(
             title: String,
             description: String? = null,
             gameMode: String,
+            gameType: String? = null,
             entryFee: Double,
             prizePool: Double,
 //            maxParticipants: Int,
@@ -56,6 +64,9 @@ data class Tournament(
             // Extra fields for app logic
             matchType: String? = null,
             map: String? = null,
+            country: String? = null,
+            registrationStartTime: Timestamp? = null,
+            registrationEndTime: Timestamp? = null,
             rewardsDistribution: List<Map<String, Any>>? = null,
             killReward: Double? = null,
             roomId: String? = null,
@@ -67,6 +78,7 @@ data class Tournament(
                 title = title,
                 description = description,
                 gameMode = gameMode,
+                gameType = gameType,
                 entryFee = entryFee,
                 prizePool = prizePool,
                 maxTeams = maxTeams,
@@ -80,6 +92,9 @@ data class Tournament(
                 updatedAt = updatedAt,
                 matchType = matchType,
                 map = map,
+                country = country,
+                registrationStartTime = registrationStartTime,
+                registrationEndTime = registrationEndTime,
                 rewardsDistribution = rewardsDistribution?.map { RewardDistribution.fromMap(it) } ?: emptyList(),
                 killReward = killReward,
                 roomId = roomId,
@@ -90,14 +105,24 @@ data class Tournament(
     }
 
     fun toDomain(): DomainTournament {
+        // Calculate start time; do not fabricate if missing
+        val startTimeMs = startDate?.toDate()?.time ?: 0L
+        
+        // Log the mapping for debugging
+        android.util.Log.d("TournamentMapper", "Mapping tournament: $title")
+        android.util.Log.d("TournamentMapper", "startDate: $startDate")
+        android.util.Log.d("TournamentMapper", "startTimeMs: $startTimeMs (${java.util.Date(startTimeMs)})")
+        
         return DomainTournament(
             id = id,
             name = title,
             description = description ?: "",
-            gameType = gameMode,
-            matchType = matchType ?: "",
+            // Prefer explicit platform gameType, fallback to gameMode for backward-compat
+            gameType = gameType ?: gameMode,
+            // Prefer matchType (team mode). If absent, fallback to gameMode so UI reflects updates to gameMode.
+            matchType = (matchType?.takeIf { it.isNotBlank() } ?: (gameMode ?: "")),
             map = map ?: "",
-            startTime = startDate?.toDate()?.time ?: 0,
+            startTime = startTimeMs,
             entryFee = entryFee,
             prizePool = prizePool,
             maxTeams = maxTeams,
@@ -116,7 +141,10 @@ data class Tournament(
             roomId = roomId,
             roomPassword = roomPassword,
             actualStartTime = actualStartTime?.toDate()?.time,
-            completedAt = endDate?.toDate()?.time
+            completedAt = endDate?.toDate()?.time,
+            country = country,
+            registrationStartTime = registrationStartTime?.toDate()?.time,
+            registrationEndTime = registrationEndTime?.toDate()?.time
         )
     }
 
@@ -125,6 +153,7 @@ data class Tournament(
             "title" to title,
             "description" to description,
             "gameMode" to gameMode,
+            "gameType" to gameType,
             "entryFee" to entryFee,
             "prizePool" to prizePool,
             "maxTeams" to maxTeams,
@@ -138,6 +167,9 @@ data class Tournament(
             "updatedAt" to updatedAt,
             "matchType" to matchType,
             "map" to map,
+            "country" to country,
+            "registrationStartTime" to registrationStartTime,
+            "registrationEndTime" to registrationEndTime,
             "rewardsDistribution" to rewardsDistribution.map { it.toMap() },
             "killReward" to killReward,
             "roomId" to roomId,
@@ -173,7 +205,9 @@ fun DomainTournament.toData(): Tournament {
         id = id,
         title = name,
         description = description,
-        gameMode = gameType,
+        // Preserve legacy: gameMode kept as team mode if provided via matchType; else fallback to gameType
+        gameMode = if (matchType.isNotBlank()) matchType else gameType,
+        gameType = gameType,
         entryFee = entryFee,
         prizePool = prizePool,
         maxTeams = maxTeams,
@@ -187,6 +221,9 @@ fun DomainTournament.toData(): Tournament {
         updatedAt = null,
         matchType = matchType,
         map = map,
+        country = country,
+        registrationStartTime = registrationStartTime?.let { Timestamp(it, 0) },
+        registrationEndTime = registrationEndTime?.let { Timestamp(it, 0) },
         rewardsDistribution = rewardsDistribution.map {
             RewardDistribution(
                 position = it.position,

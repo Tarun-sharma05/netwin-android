@@ -46,7 +46,7 @@ class TournamentRepositoryImpl @Inject constructor(
             "${FirebaseManager.Companion.Collections.TOURNAMENTS}")
         
         val subscription = tournamentsCollection
-            .orderBy("startTime")
+            .orderBy("startDate")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e("TournamentRepository", "Error fetching tournaments: ${error.message}")
@@ -73,21 +73,26 @@ class TournamentRepositoryImpl @Inject constructor(
                             // Robust mapping for all known schema variants
                             val title = data["title"] as? String ?: data["name"] as? String ?: ""
                             val gameMode = data["gameMode"] as? String ?: data["gameType"] as? String ?: ""
+                            val gameType = data["gameType"] as? String
                             val maxTeams = (data["maxTeams"] as? Number)?.toInt() ?: 0
                             val registeredTeams = (data["registeredTeams"] as? Number)?.toInt() ?: 0
                             val image = data["image"] as? String ?: data["bannerImage"] as? String
+                            val country = data["country"] as? String
                             val startDate = when (val st = data["startDate"] ?: data["startTime"]) {
                                 is com.google.firebase.Timestamp -> st
                                 is String -> try { com.google.firebase.Timestamp(java.util.Date.from(java.time.Instant.parse(st))) } catch (e: Exception) { null }
                                 else -> null
                             }
                             val endDate = data["endDate"] as? com.google.firebase.Timestamp ?: data["completedAt"] as? com.google.firebase.Timestamp
+                            val registrationStartTime = data["registrationStartTime"] as? com.google.firebase.Timestamp
+                            val registrationEndTime = data["registrationEndTime"] as? com.google.firebase.Timestamp
 
                             Tournament.fromFirestore(
                             id = doc.id,
                                 title = title,
                                 description = data["description"] as? String,
                                 gameMode = gameMode,
+                                gameType = gameType,
                                 entryFee = (data["entryFee"] as? Number)?.toDouble() ?: 0.0,
                                 prizePool = (data["prizePool"] as? Number)?.toDouble() ?: 0.0,
                                 maxTeams = maxTeams,
@@ -102,6 +107,9 @@ class TournamentRepositoryImpl @Inject constructor(
                                 // Extra fields for app logic
                                 matchType = data["matchType"] as? String,
                                 map = data["map"] as? String,
+                                country = country,
+                                registrationStartTime = registrationStartTime,
+                                registrationEndTime = registrationEndTime,
                                 rewardsDistribution = data["rewardsDistribution"] as? List<Map<String, Any>>,
                                 killReward = (data["killReward"] as? Number)?.toDouble() ?: (data["perKillReward"] as? Number)?.toDouble(),
                                 roomId = data["roomId"] as? String,
@@ -136,7 +144,8 @@ class TournamentRepositoryImpl @Inject constructor(
                 id = doc.id,
                 title = data["title"] as? String ?: "",
                 description = data["description"] as? String,
-                gameMode = data["gameMode"] as? String ?: "",
+                gameMode = data["gameMode"] as? String ?: (data["gameType"] as? String ?: ""),
+                gameType = data["gameType"] as? String,
                 entryFee = (data["entryFee"] as? Number)?.toDouble() ?: 0.0,
                 prizePool = (data["prizePool"] as? Number)?.toDouble() ?: 0.0,
                 maxTeams = (data["maxTeams"] as? Number)?.toInt() ?: 0,
@@ -145,12 +154,15 @@ class TournamentRepositoryImpl @Inject constructor(
                 startDate = data["startDate"] as? Timestamp,
                 endDate = data["endDate"] as? Timestamp,
                 rules = data["rules"] as? String,
-                image = data["image"] as? String,
+                image = (data["image"] as? String) ?: (data["bannerImage"] as? String),
                 createdAt = data["createdAt"] as? Timestamp,
                 updatedAt = data["updatedAt"] as? Timestamp,
                 // Extra fields for app logic
                 matchType = data["matchType"] as? String,
                 map = data["map"] as? String,
+                country = data["country"] as? String,
+                registrationStartTime = data["registrationStartTime"] as? Timestamp,
+                registrationEndTime = data["registrationEndTime"] as? Timestamp,
                 rewardsDistribution = data["rewardsDistribution"] as? List<Map<String, Any>>,
                 killReward = (data["killReward"] as? Number)?.toDouble(),
                 roomId = data["roomId"] as? String,
@@ -273,7 +285,7 @@ class TournamentRepositoryImpl @Inject constructor(
                     maxTeams = (data["maxTeams"] as? Number)?.toInt() ?: 0,
                     registeredTeams = (data["registeredTeams"] as? Number)?.toInt() ?: 0,
                     status = data["status"] as? String ?: "upcoming",
-                    startDate = data["startTime"] as? Timestamp, // <-- FIXED: use startTime from Firestore
+                    startDate = (data["startDate"] as? Timestamp) ?: (data["startTime"] as? Timestamp),
                     endDate = data["endDate"] as? Timestamp,
                     rules = data["rules"] as? String,
                     image = data["image"] as? String,
@@ -282,6 +294,8 @@ class TournamentRepositoryImpl @Inject constructor(
                     // Extra fields for app logic
                     matchType = data["matchType"] as? String,
                     map = data["map"] as? String,
+                    registrationStartTime = data["registrationStartTime"] as? Timestamp,
+                    registrationEndTime = data["registrationEndTime"] as? Timestamp,
                     rewardsDistribution = data["rewardsDistribution"] as? List<Map<String, Any>>,
                     killReward = (data["killReward"] as? Number)?.toDouble(),
                     roomId = data["roomId"] as? String,
@@ -318,16 +332,14 @@ class TournamentRepositoryImpl @Inject constructor(
             if(tournament.entryFee > 0 && user?.kycStatus?.equals("verified", ignoreCase = true) == false) {
                 throw Exception("KYC verification required to register for this tournament.")
             }
-            // Registration window check (allow registration any time before start)
+            // Registration window check (time-based)
             val now = System.currentTimeMillis()
-            val startMillis = tournament.startDate?.toDate()?.time ?: 0L
-            Log.d("TournamentRepoImpl", "Registration check: now=$now, startMillis=$startMillis, status=${tournament.status}")
-            if (now > startMillis) {
+            val startMillis = tournament.startDate?.toDate()?.time
+            val regStartMillis = tournament.registrationStartTime?.toDate()?.time ?: Long.MIN_VALUE
+            val regEndMillis = tournament.registrationEndTime?.toDate()?.time ?: (startMillis ?: Long.MAX_VALUE)
+            Log.d("TournamentRepoImpl", "Registration window: now=$now, regStart=$regStartMillis, regEnd=$regEndMillis, start=$startMillis, status=${tournament.status}")
+            if (!(now >= regStartMillis && now < regEndMillis)) {
                 throw Exception("Registration is closed.")
-            }
-            // Status check: Only allow registration if tournament is upcoming
-            if (tournament.status != "upcoming") {
-                throw Exception("Registration is closed for this tournament.")
             }
 
             // 3. All checks passed, perform the writes
@@ -375,16 +387,18 @@ class TournamentRepositoryImpl @Inject constructor(
             transaction.set(userTransactionsRef.document(), transactionRecord)
         }.await()
 
+        // If we reach here, transaction was successful
+        Log.d("TournamentRepoImpl", "Registration transaction completed successfully")
         Result.success(Unit)
     } catch (e: Exception) {
         Log.e("TournamentRepoImpl", "Error in registerForTournament transaction", e)
         Result.failure(e)
     }
 
-    override suspend fun isUserRegisteredForTournament(tournamentId: String, userId: String): Boolean = try {
-        val registrationRef = firebaseManager.firestore
-            .collection("tournament_registrations")
-            .document("${tournamentId}_${userId}")
+override suspend fun isUserRegisteredForTournament(tournamentId: String, userId: String): Boolean = try {
+    val registrationRef = firebaseManager.firestore
+        .collection("tournament_registrations")
+        .document("${tournamentId}_${userId}")
 
         registrationRef.get().await().exists()
     } catch (e: Exception) {
