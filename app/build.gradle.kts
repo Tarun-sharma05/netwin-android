@@ -29,6 +29,7 @@ android {
     buildTypes {
         debug {
             // Debug configuration
+            buildConfigField("boolean", "TOURNAMENT_UI_V2", "true")
         }
         release {
             isMinifyEnabled = false
@@ -36,6 +37,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Default OFF in release for safe rollout
+            buildConfigField("boolean", "TOURNAMENT_UI_V2", "false")
         }
     }
     compileOptions {
@@ -47,6 +50,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.1"
@@ -56,7 +60,7 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
-    buildToolsVersion = rootProject.extra["buildToolsVersion"] as String
+    buildToolsVersion = rootProject.extra["buildToolsVersion1"] as String
 }
 
 // Add Room schema directory configuration
@@ -64,42 +68,44 @@ android {
 
 dependencies {
     // Core Android
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.core:core-splashscreen:1.0.1")  // SplashScreen API
     
     // Compose
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-    implementation("androidx.compose.material:material:1.8.3")
+    implementation("androidx.compose.material:material:1.9.2")
     implementation("androidx.compose.material3:material3:1.3.2")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose")
     implementation("androidx.navigation:navigation-compose")
     
     // Navigation Serialization
-    implementation("androidx.navigation:navigation-compose:2.9.1")
-    implementation("androidx.navigation:navigation-runtime-ktx:2.9.1")
+    implementation("androidx.navigation:navigation-compose:2.9.5")
+    implementation("androidx.navigation:navigation-runtime-ktx:2.9.5")
     implementation("androidx.navigation:navigation-common-ktx:2.9.1")
-    implementation("androidx.navigation:navigation-ui-ktx:2.9.1")
+    implementation("androidx.navigation:navigation-ui-ktx:2.9.5")
     
     // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     
     // Hilt
-    implementation("com.google.dagger:hilt-android:2.56.2")
+    implementation("com.google.dagger:hilt-android:2.57.1")
     implementation(libs.firebase.auth)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.storage.ktx)
-    implementation("com.google.firebase:firebase-appcheck-playintegrity:18.0.0")
-    implementation("com.google.firebase:firebase-appcheck-debug:18.0.0")
-    ksp("com.google.dagger:hilt-android-compiler:2.56.2")
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity:19.0.1")
+    implementation("com.google.firebase:firebase-appcheck-debug:19.0.1")
+    implementation(libs.androidx.compose.foundation)
+    ksp("com.google.dagger:hilt-android-compiler:2.57.1")
+    implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
     
 //    // Firebase
 //    implementation(platform("com.google.firebase:firebase-bom:33.15.0"))
@@ -111,7 +117,7 @@ dependencies {
 //
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     
     
     
@@ -120,6 +126,10 @@ dependencies {
 
     // Datastore preference
     implementation ("androidx.datastore:datastore-preferences:1.1.7")
+
+    // Payment Gateways (Phase 2)
+    implementation("com.razorpay:checkout:1.6.41")
+    implementation("co.paystack.android:paystack:3.1.3")
     
     // Testing
     testImplementation(libs.junit)
