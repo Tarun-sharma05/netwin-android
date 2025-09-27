@@ -79,6 +79,7 @@ yarn-error.log*
 
 # IDE specific
 .idea/
+.idea/ChatHistory_schema_v2.xml
 .vscode/
 *.swp
 *.swo
