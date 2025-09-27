@@ -1,0 +1,26 @@
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20",
+    "platform": "gcf2"
+  },
+  "emulators": {
+    "functions": {
+      "port": 8125
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "auth": {
+      "port": 9099
+    }
+  },
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}

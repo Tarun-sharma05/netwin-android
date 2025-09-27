@@ -1,0 +1,196 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    // Moderator helpers
+    function isModerator() {
+      return request.auth != null && (
+        (request.auth.token.role == 'moderator') ||
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'moderator')
+      );
+    }
+    function hasModeratorPermission(permission) {
+      // Check custom claims first, then user doc
+      return request.auth != null && (
+        (permission in request.auth.token.permissions) ||
+        (permission in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions)
+      );
+    }
+    function isAdminPanel() {
+      return request.auth == null && 'X-Firebase-AppCheck' in request.headers;
+    }
+
+    // Admin config
+    match /admin_config/{docId} {
+      allow read: if isAdminPanel() || isAdmin() || (isModerator() && hasModeratorPermission('view_admin_config')) || isAuthenticated();
+      allow write: if isAdminPanel() || isAdmin() || (isModerator() && hasModeratorPermission('edit_admin_config'));
+    }
+    // Users
+    match /users/{userId} {
+      allow read: if isAuthenticated() || isAdminPanel() || (isModerator() && hasModeratorPermission('view_users'));
+      allow write: if (isAuthenticated() && isOwner(userId)) || isAdminPanel() || (isModerator() && hasModeratorPermission('edit_users'));
+    
+    // User transactions subcollection - ADD THIS
+    match /transactions/{transactionId} {
+    allow read, write: if (isAuthenticated() && isOwner(userId)) || isAdminPanel() || (isModerator() && hasModeratorPermission('manage_user_transactions'));
+      }
+    }
+    // Tournaments
+    match /tournaments/{tournamentId} {
+      allow read: if true;
+      // allow write: if (request.auth != null && (isAdmin() || (isModerator() && hasModeratorPermission('edit_tournaments')))) || isAdminPanel();
+      // allow update: if request.auth != null || isAdminPanel();
+      allow create: if (request.auth != null && (isAdmin() || (isModerator() && hasModeratorPermission('edit_tournaments')))) || isAdminPanel();
+      allow update: if request.auth != null || isAdminPanel();
+      allow delete: if (request.auth != null && (isAdmin() || (isModerator() && hasModeratorPermission('edit_tournaments')))) || isAdminPanel();
+    }
+    // Matches
+    match /matches/{matchId} {
+      allow read: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('view_matches'));
+      allow write: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('edit_matches'));
+    }
+    // Transactions
+    match /transactions/{transactionId} {
+      allow read, write: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('manage_transactions'));
+    }
+    // Tournament registrations
+    match /tournament_registrations/{registrationId} {
+      allow read, write: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('manage_registrations'));
+    }
+    // User matches
+    match /user_matches/{matchId} {
+      allow read: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('view_user_matches'));
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('edit_user_matches'));
+      allow delete: if isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('delete_user_matches'));
+    }
+    // Leaderboards
+    match /leaderboards/{leaderboardId} {
+      allow read: if true;
+      allow write: if (request.auth != null && (isAdmin() || (isModerator() && hasModeratorPermission('edit_leaderboards')))) || isAdminPanel();
+    }
+    // Support tickets
+    match /support_tickets/{ticketId} {
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read, update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('manage_support_tickets'));
+      allow delete: if isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('delete_support_tickets'));
+    }
+    // Test collection
+    match /test_collection/{docId} {
+      allow read, write: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('manage_test_collection'));
+    }
+    // Match results
+    match /match_results/{resultId} {
+      allow read: if isAuthenticated() || isAdminPanel() || (isModerator() && hasModeratorPermission('view_match_results'));
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('edit_match_results'));
+      allow delete: if isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('delete_match_results'));
+    }
+    // Wallets
+    match /wallets/{userId} {
+      allow read: if (isAuthenticated() && (isOwner(userId) || isAdmin() || (isModerator() && hasModeratorPermission('view_wallets')))) || isAdminPanel();
+      allow create: if (isAuthenticated() && isOwner(userId)) || isAdminPanel() || (isModerator() && hasModeratorPermission('create_wallets'));
+      allow update: if ((isAuthenticated() && (isOwner(userId) || isAdmin() || (isModerator() && hasModeratorPermission('edit_wallets')))) || isAdminPanel()) && (request.resource.data.balance >= 0 && request.resource.data.currency == resource.data.currency);
+    }
+    // Wallet transactions
+    match /wallet_transactions/{transactionId} {
+      allow read: if (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin() || (isModerator() && hasModeratorPermission('view_wallet_transactions')))) || isAdminPanel();
+      allow create: if ((isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.type in ['deposit', 'withdrawal', 'prize', 'entry_fee'] && request.resource.data.amount > 0 && request.resource.data.status in ['pending', 'processing', 'completed', 'failed'])) || isAdminPanel() || (isModerator() && hasModeratorPermission('create_wallet_transactions'));
+      allow update: if ((isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin() || (isModerator() && hasModeratorPermission('edit_wallet_transactions'))) && (request.resource.data.userId == resource.data.userId && request.resource.data.amount == resource.data.amount && request.resource.data.type == resource.data.type)) || isAdminPanel());
+    }
+    // Payment intents
+    match /paymentIntents/{intentId} {
+      allow read: if (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin() || (isModerator() && hasModeratorPermission('view_payment_intents')))) || isAdminPanel();
+      allow create: if ((isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.amount > 0 && request.resource.data.status in ['pending', 'processing', 'completed', 'failed'])) || isAdminPanel() || (isModerator() && hasModeratorPermission('create_payment_intents'));
+      allow update: if ((isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin() || (isModerator() && hasModeratorPermission('edit_payment_intents'))) && (request.resource.data.userId == resource.data.userId && request.resource.data.amount == resource.data.amount)) || isAdminPanel());
+    }
+    // Squad members
+    match /squad_members/{memberId} {
+      allow read, write: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('manage_squad_members'));
+    }
+    // KYC documents
+    match /kycDocuments/{documentId} {
+      allow read, write: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('manage_kyc_documents'));
+    }
+    match /kyc_documents/{documentId} {
+      allow read, write: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('manage_kyc_documents'));
+    }
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read, write: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('manage_notifications'));
+    }
+    // Tournament participants
+    match /tournament_participants/{participantId} {
+      allow read: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('view_tournament_participants'));
+      allow write: if request.auth != null || isAdminPanel() || (isModerator() && hasModeratorPermission('edit_tournament_participants'));
+    }
+    // Pending deposits
+    match /pending_deposits/{depositId} {
+      allow read: if (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin() || (isModerator() && hasModeratorPermission('view_pending_deposits')))) || isAdminPanel();
+      allow create: if ((isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.amount > 0 && request.resource.data.status == 'PENDING')) || isAdminPanel() || (isModerator() && hasModeratorPermission('create_pending_deposits'));
+      allow update: if ((isAuthenticated() && (isAdmin() || (isModerator() && hasModeratorPermission('edit_pending_deposits')))) || isAdminPanel());
+    }
+    // Pending withdrawals
+    match /pending_withdrawals/{withdrawalId} {
+      allow read: if (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin() || (isModerator() && hasModeratorPermission('view_pending_withdrawals')))) || isAdminPanel();
+      allow create: if ((isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.amount > 0 && request.resource.data.status == 'PENDING')) || isAdminPanel() || (isModerator() && hasModeratorPermission('create_pending_withdrawals'));
+      allow update: if ((isAuthenticated() && (isAdmin() || (isModerator() && hasModeratorPermission('edit_pending_withdrawals')))) || isAdminPanel());
+    }
+    // Payment links
+    match /paymentLinks/{docId} {
+      allow read: if isAuthenticated() || (isModerator() && hasModeratorPermission('view_payment_links'));
+      allow write: if isAdminPanel() || isAdmin() || (isModerator() && hasModeratorPermission('edit_payment_links'));
+    }
+    // Wallet config
+    match /wallet_config/{docId} {
+      allow read: if isAuthenticated() || isAdminPanel() || (isModerator() && hasModeratorPermission('view_wallet_config'));
+      allow write: if isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('edit_wallet_config'));
+    }
+    // Announcements
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('edit_announcements'));
+    }
+    
+    // Moderator access collection
+    match /moderator_access/{userId} {
+      allow read: if isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('view_moderator_access'));
+      allow write: if isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('edit_moderator_access'));
+    }
+    
+    // Prize distributions
+    match /prize_distributions/{distributionId} {
+      allow read: if isAuthenticated() || isAdminPanel() || (isModerator() && hasModeratorPermission('view_prize_distributions'));
+      allow write: if isAdmin() || isAdminPanel() || (isModerator() && hasModeratorPermission('edit_prize_distributions'));
+    }
+  }
+}
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // KYC uploads
+    match /kyc/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    // Screenshot uploads
+    match /screenshots/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    // Admin panel access
+    match /{allPaths=**} {
+      allow read, write: if 'X-Firebase-AppCheck' in request.headers;
+    }
+  }
+}
