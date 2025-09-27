@@ -8,13 +8,13 @@ import kotlinx.serialization.Serializable
 @Stable
 @Serializable
 data class RegistrationStepData(
-    val inGameId: String = "",
+    val playerIds: List<String> = listOf(""),
     val teamName: String = "",
     val paymentMethod: String = "wallet",
     val termsAccepted: Boolean = false,
     val tournamentId: String = ""
 ) : Parcelable {
-    
+
     /**
      * Validates the registration data for a specific step
      * @param step The registration step to validate
@@ -23,20 +23,20 @@ data class RegistrationStepData(
     fun validate(step: RegistrationStep): String? {
         android.util.Log.d("RegistrationStepData", "=== validate() DOMAIN LAYER ENTRY ===")
         android.util.Log.d("RegistrationStepData", "VALIDATION STEP: $step")
-        android.util.Log.d("RegistrationStepData", "CURRENT DATA: inGameId='$inGameId', teamName='$teamName', paymentMethod='$paymentMethod', termsAccepted=$termsAccepted, tournamentId='$tournamentId'")
-        
+        android.util.Log.d("RegistrationStepData", "CURRENT DATA: playerIds='$playerIds', teamName='$teamName', paymentMethod='$paymentMethod', termsAccepted=$termsAccepted, tournamentId='$tournamentId'")
+
         // Only validate fields relevant to the current step
         val result = when (step) {
             RegistrationStep.DETAILS -> {
                 android.util.Log.d("RegistrationStepData", "Validating DETAILS step...")
                 when {
-                    inGameId.isBlank() -> {
-                        android.util.Log.w("RegistrationStepData", "DETAILS validation FAILED: inGameId is blank")
-                        "In-game ID is required"
+                    playerIds.any { it.isBlank() } -> {
+                        android.util.Log.w("RegistrationStepData", "DETAILS validation FAILED: one or more playerIds are blank")
+                        "All player in-game IDs are required"
                     }
-                    inGameId.length < 3 -> {
-                        android.util.Log.w("RegistrationStepData", "DETAILS validation FAILED: inGameId length ${inGameId.length} < 3")
-                        "In-game ID must be at least 3 characters"
+                    playerIds.any { it.length < 3 } -> {
+                        android.util.Log.w("RegistrationStepData", "DETAILS validation FAILED: one or more playerIds are too short")
+                        "All in-game IDs must be at least 3 characters"
                     }
                     // Team name validation - only required for non-SOLO tournaments
                     // For SOLO tournaments, team name can be empty or auto-filled
@@ -185,17 +185,19 @@ data class RegistrationStepData(
     override fun describeContents(): Int = 0
     
     override fun writeToParcel(parcel: Parcel, flags: Int) {
-        parcel.writeString(inGameId)
+        parcel.writeStringList(playerIds)
         parcel.writeString(teamName)
         parcel.writeString(paymentMethod)
         parcel.writeByte(if (termsAccepted) 1 else 0)
         parcel.writeString(tournamentId)
     }
-    
+
     companion object CREATOR : Parcelable.Creator<RegistrationStepData> {
         override fun createFromParcel(parcel: Parcel): RegistrationStepData {
+            val playerIds = mutableListOf<String>()
+            parcel.readStringList(playerIds)
             return RegistrationStepData(
-                inGameId = parcel.readString() ?: "",
+                playerIds = playerIds,
                 teamName = parcel.readString() ?: "",
                 paymentMethod = parcel.readString() ?: "wallet",
                 termsAccepted = parcel.readByte() != 0.toByte(),

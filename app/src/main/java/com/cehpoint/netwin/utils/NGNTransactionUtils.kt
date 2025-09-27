@@ -91,7 +91,20 @@ object NGNTransactionUtils {
             else -> currency
         }
     }
-    
+
+    /**
+     * NEW: Formats a currency amount with the correct symbol and removes unnecessary trailing decimals.
+     * This is the new standard function for displaying money in the UI.
+     * Example: formatAmountTidy(5000.0, "INR") -> "₹5000"
+     * Example: formatAmountTidy(10.50, "NGN") -> "₦10.5"
+     */
+    fun formatAmountTidy(amount: Double, currency: String): String {
+        // First, format with symbol, commas, and two decimal places.
+        val formatted = formatAmount(amount, currency) // e.g., "₹5,000.00" or "₦10.50"
+        // Then, remove trailing ".00" only if it's there.
+        return formatted.replace(Regex("(?<=\\d)\\.00(?!\\d)"), "")
+    }
+
     fun validateCurrency(currency: String): Boolean {
         return Wallet.SUPPORTED_CURRENCIES.containsKey(currency.uppercase())
     }

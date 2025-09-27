@@ -80,6 +80,23 @@ class FirebaseManager @Inject constructor(
         Result.failure(e)
     }
 
+//    // Add this method inside your FirebaseManager class
+//    suspend fun updateDocumentField(
+//        collection: String,
+//        documentId: String,
+//        field: String,
+//        value: Any
+//    ): Result<Unit> = try {
+//        firestore.collection(collection)
+//            .document(documentId)
+//            .update(field, value)
+//            .await()
+//        Result.success(Unit)
+//    } catch (e: Exception) {
+//        Result.failure(e)
+//    }
+
+
     // Firestore methods
     suspend fun <T> addDocument(collection: String, document: T): Result<String> = try {
         val docRef = firestore.collection(collection).document()
@@ -181,7 +198,7 @@ class FirebaseManager @Inject constructor(
                             maxTeams = doc.getLong("maxTeams")?.toInt() ?: 0,
                             registeredTeams = doc.getLong("registeredTeams")?.toInt() ?: 0,
                             status = doc.getString("status") ?: "upcoming",
-                            rules = doc.getString("rules"),
+                            rules = doc.get("rules") as? List<String>,
                             image = doc.getString("bannerImage"),
                             rewardsDistribution = doc.get("rewardsDistribution") as? List<Map<String, Any>>,
                             createdAt = doc.getTimestamp("createdAt") ?: return@mapNotNull null,
@@ -228,7 +245,7 @@ class FirebaseManager @Inject constructor(
                     maxTeams = document.getLong("maxTeams")?.toInt() ?: 0,
                     registeredTeams = document.getLong("registeredTeams")?.toInt() ?: 0,
                     status = document.getString("status") ?: "upcoming",
-                    rules = document.getString("rules"),
+                    rules = document.get("rules") as? List<String>,
                     image = document.getString("bannerImage"),
                     rewardsDistribution = document.get("rewardsDistribution") as? List<Map<String, Any>>,
                     createdAt = document.getTimestamp("createdAt") ?: return Result.success(null),

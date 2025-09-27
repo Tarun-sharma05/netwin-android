@@ -11,6 +11,13 @@ interface TournamentRepository {
     suspend fun getTournamentById(id: String): Tournament?
     suspend fun createTournament(tournament: Tournament): Result<Tournament>
     suspend fun updateTournament(tournament: Tournament): Result<Tournament>
+    
+    /**
+     * Fetches the list of tournament IDs that the user has registered for
+     * @param userId The ID of the user
+     * @return List of tournament IDs that the user has registered for
+     */
+    suspend fun getUserTournamentRegistrations(userId: String): List<String>
     suspend fun deleteTournament(id: String): Result<Unit>
     suspend fun joinTournament(tournamentId: String, userId: String): Result<Unit>
     suspend fun leaveTournament(tournamentId: String, userId: String): Result<Unit>
@@ -20,7 +27,7 @@ interface TournamentRepository {
         userId: String,
         displayName: String,
         teamName: String,
-        inGameId: String
+        playerIds: List<String>
     ): Result<Unit>
     suspend fun isUserRegisteredForTournament(tournamentId: String, userId: String): Boolean
 } 

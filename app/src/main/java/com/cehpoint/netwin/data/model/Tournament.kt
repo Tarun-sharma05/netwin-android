@@ -23,7 +23,7 @@ data class Tournament(
     val status: String = "upcoming",
     val startDate: Timestamp? = null,
     val endDate: Timestamp? = null,
-    val rules: String? = null,
+    val rules: List<String> = emptyList(),
     val image: String? = null,
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null,
@@ -41,6 +41,25 @@ data class Tournament(
     val roomPassword: String? = null,
     val actualStartTime: Timestamp? = null
 ) {
+    val mode: TournamentMode
+        get() = when ((matchType ?: gameMode).uppercase()) {
+            "SOLO" -> TournamentMode.SOLO
+            "DUO" -> TournamentMode.DUO
+            "SQUAD" -> TournamentMode.SQUAD
+            "TRIO" -> TournamentMode.TRIO
+            "CUSTOM" -> TournamentMode.CUSTOM
+            else -> TournamentMode.SQUAD
+        }
+
+    val teamSize: Int
+        get() = when (mode) {
+            TournamentMode.SOLO -> 1
+            TournamentMode.DUO -> 2
+            TournamentMode.TRIO -> 3
+            TournamentMode.SQUAD -> 4
+            TournamentMode.CUSTOM -> maxTeams
+        }
+
     companion object {
         fun fromFirestore(
             id: String,
@@ -57,7 +76,7 @@ data class Tournament(
             status: String,
             startDate: Timestamp? = null,
             endDate: Timestamp? = null,
-            rules: String? = null,
+            rules: List<String>? = null,
             image: String? = null,
             createdAt: Timestamp? = null,
             updatedAt: Timestamp? = null,
@@ -86,7 +105,7 @@ data class Tournament(
                 status = status,
                 startDate = startDate,
                 endDate = endDate,
-                rules = rules,
+                rules = rules ?: emptyList(),
                 image = image,
                 createdAt = createdAt,
                 updatedAt = updatedAt,
@@ -128,7 +147,7 @@ data class Tournament(
             maxTeams = maxTeams,
             registeredTeams = registeredTeams,
             status = status,
-            rules = rules,
+            rules = rules ?: emptyList(),
             bannerImage = image,
             rewardsDistribution = rewardsDistribution.map {
                 com.cehpoint.netwin.domain.model.RewardDistribution(
@@ -191,7 +210,7 @@ data class RewardDistribution(
     }
 
     companion object {
-        fun fromMap(map: Map<String, Any>): RewardDistribution {
+        fun fromMap(map: Map<String, Any?>): RewardDistribution {
             return RewardDistribution(
                 position = (map["position"] as? Number)?.toInt() ?: 0,
                 percentage = (map["percentage"] as? Number)?.toDouble() ?: 0.0

@@ -13,7 +13,7 @@ data class Tournament(
     val maxTeams: Int = 0,
     val registeredTeams: Int = 0,
     val status: String = "upcoming",
-    val rules: String? = null,
+    val rules: List<String> = emptyList(),
     val bannerImage: String? = null,
     val rewardsDistribution: List<RewardDistribution> = emptyList(),
     val createdAt: Long = 0,
@@ -34,6 +34,15 @@ data class Tournament(
             "TRIO" -> TournamentMode.TRIO
             "CUSTOM" -> TournamentMode.CUSTOM
             else -> TournamentMode.SQUAD
+        }
+
+    val teamSize: Int
+        get() = when (mode) {
+            TournamentMode.SOLO -> 1
+            TournamentMode.DUO -> 2
+            TournamentMode.TRIO -> 3
+            TournamentMode.SQUAD -> 4
+            TournamentMode.CUSTOM -> maxTeams // Or some other logic for custom
         }
     val computedStatus: TournamentStatus
         get() {
@@ -81,6 +90,7 @@ data class RewardDistribution(
     val position: Int,
     val percentage: Double
 )
+
 
 enum class TournamentStatus {
     UPCOMING,
