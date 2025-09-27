@@ -18,6 +18,21 @@ local.properties
 *.md
 !README.md
 
+# Specific documentation files from git status
+STEP1_TASK_COMPLETION_REPORT.md
+STEP3_AUDIT_REPORT.md
+STEP_5_COMPLETION_SUMMARY.md
+VALIDATION_DEBUGGING_SETUP.md
+VALIDATION_REPORT.md
+ValidationAuditResults.md
+WALLET_SYSTEM_ANALYSIS_PROMPT.md
+netwin-wallet-implementation-plan.md
+registration_flow_analysis.md
+registration_flow_issues_log.md
+tournament-app-mvp-plan.md
+user_interaction_code_paths.md
+✅ High-Level Architecture.txt
+
 # Media files
 *.jpg
 *.jpeg
@@ -43,6 +58,7 @@ netwin-tournaments-app-web/
 
 # App icons (should be in res/ directory)
 netwin_ic_launcher-*/
+netwin_ic_launcher_one-*/
 
 # Sensitive files
 rzp-key.csv
@@ -76,3 +92,6 @@ yarn-error.log*
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Temporary and reference files
+I'll scan the project to locate the refe.md
