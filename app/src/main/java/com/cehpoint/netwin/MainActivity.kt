@@ -27,12 +27,12 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel by viewModels<AuthViewModel>()
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen().apply {
-            setKeepOnScreenCondition {
-                val shouldKeepSplash = !viewModel.isSplashShow.value
-                Log.d("MainActivity", "Splash screen condition check: shouldKeepSplash = $shouldKeepSplash, isSplashShow = ${viewModel.isSplashShow.value}")
-                shouldKeepSplash
-            }
+        // Handle the splash screen transition
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition {
+            val shouldKeepSplash = !viewModel.isSplashShow.value
+            Log.d("MainActivity", "Splash screen condition check: shouldKeepSplash = $shouldKeepSplash, isSplashShow = ${viewModel.isSplashShow.value}")
+            shouldKeepSplash
         }
 //        val splashScreen = installSplashScreen()
 //        // TEMP: Keep splash for 2 seconds to test visibility

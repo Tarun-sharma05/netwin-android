@@ -12,6 +12,8 @@ data class Transaction(
     val status: TransactionStatus = TransactionStatus.PENDING,
     val description: String = "",
     val paymentMethod: PaymentMethod = PaymentMethod.UPI,
+    val gateway: String? = null, // e.g., RAZORPAY, PAYSTACK
+    val gatewayReference: String? = null, // order_id or reference
     val metadata: Map<String, Any> = emptyMap(),
     val tournamentId: String? = null,
     val tournamentTitle: String? = null,
@@ -50,6 +52,9 @@ enum class TransactionType {
 
     @PropertyName("tournament_entry")
     TOURNAMENT_ENTRY,
+
+    @PropertyName("entry_fee")
+    ENTRY_FEE,
 
     @PropertyName("tournament_winning")
     TOURNAMENT_WINNING,
@@ -98,7 +103,10 @@ enum class TransactionStatus {
     REFUNDED,
 
     @PropertyName("cancelled")
-    CANCELLED
+    CANCELLED,
+
+    @PropertyName("verified")
+    VERIFIED
 
 }
 
@@ -143,6 +151,9 @@ enum class PaymentMethod {
 // Nigerian payment methods
     @PropertyName("flutterwave")
     FLUTTERWAVE,
+
+    @PropertyName("razorpay")
+    RAZORPAY,
 
     @PropertyName("paystack")
     PAYSTACK,

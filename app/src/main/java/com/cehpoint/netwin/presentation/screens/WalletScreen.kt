@@ -1,36 +1,113 @@
 package com.cehpoint.netwin.presentation.screens
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.GetApp
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Payment
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import coil.compose.rememberAsyncImagePainter
+import com.cehpoint.netwin.data.model.PendingDeposit
+import com.cehpoint.netwin.payments.PaymentGatewayFactory
+import com.cehpoint.netwin.payments.PaymentGatewayManager
+import com.razorpay.Checkout
+import com.razorpay.PaymentResultListener
 import com.cehpoint.netwin.data.model.Transaction
 import com.cehpoint.netwin.data.model.TransactionStatus
 import com.cehpoint.netwin.data.model.TransactionType
@@ -39,21 +116,26 @@ import com.cehpoint.netwin.data.model.WithdrawalRequest
 import com.cehpoint.netwin.presentation.components.StatusChip
 import com.cehpoint.netwin.presentation.components.statusBarPadding
 import com.cehpoint.netwin.presentation.navigation.ScreenRoutes
-import com.cehpoint.netwin.presentation.viewmodels.WalletViewModel
+import com.cehpoint.netwin.presentation.theme.NetwinTokens
 import com.cehpoint.netwin.presentation.viewmodels.AuthViewModel
+import com.cehpoint.netwin.presentation.viewmodels.WalletViewModel
+import com.cehpoint.netwin.ui.theme.DarkBackground
+import com.cehpoint.netwin.ui.theme.DarkCard
+import com.cehpoint.netwin.ui.theme.DarkSurface
+import com.cehpoint.netwin.ui.theme.ErrorRed
+import com.cehpoint.netwin.ui.theme.NetWinCyan
+import com.cehpoint.netwin.ui.theme.NetWinPink
+import com.cehpoint.netwin.ui.theme.NetWinPurple
+import com.cehpoint.netwin.ui.theme.SuccessGreen
+import com.cehpoint.netwin.ui.theme.WarningYellow
 import com.cehpoint.netwin.utils.NGNTransactionUtils
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
-import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.tasks.await
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.foundation.Image
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import coil.compose.rememberAsyncImagePainter
-import com.cehpoint.netwin.data.model.PendingDeposit
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,11 +157,11 @@ fun WalletScreen(
     val withdrawalRequests by walletViewModel.withdrawalRequests.collectAsState(initial = emptyList())
 
     var showAmountSheet by remember { mutableStateOf(false) }
-    var selectedAmount by remember { mutableStateOf(0) }
-    var manualAmount by remember { mutableStateOf("") }
-    var upiResultMessage by remember { mutableStateOf<String?>(null) }
-    var showWithdrawDialog by remember { mutableStateOf(false) }
-    var showNGNDepositDialog by remember { mutableStateOf(false) }
+    var selectedAmount by rememberSaveable { mutableStateOf(0) }
+    var manualAmount by rememberSaveable { mutableStateOf("") }
+    var upiResultMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var showWithdrawDialog by rememberSaveable { mutableStateOf(false) }
+    var showNGNDepositDialog by rememberSaveable { mutableStateOf(false) }
     val presetAmounts = listOf(100, 200, 500)
     val presetNGNAmounts = listOf(1000, 2000, 5000)
     val amountSheetState = rememberModalBottomSheetState(
@@ -87,16 +169,62 @@ fun WalletScreen(
     )
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var withdrawSuccess by remember { mutableStateOf(false) }
+    var withdrawSuccess by rememberSaveable { mutableStateOf(false) }
 
     // Get user country and currency
-    var userCountry by remember { mutableStateOf("IN") }
-    var userCurrency by remember { mutableStateOf("INR") }
+    var userCountry by rememberSaveable { mutableStateOf("IN") }
+    var userCurrency by rememberSaveable { mutableStateOf("INR") }
     
-    var kycStatus by remember { mutableStateOf<String?>(null) }
-    var showKycDialog by remember { mutableStateOf(false) }
+    var kycStatus by rememberSaveable { mutableStateOf<String?>(null) }
+    var showKycDialog by rememberSaveable { mutableStateOf(false) }
     
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("wallet_payment_state", Context.MODE_PRIVATE)
+    
+    // Payment Gateway Integration
+    val paymentGateway: PaymentGatewayManager? = remember { PaymentGatewayFactory.forCurrency(userCurrency) }
+    var razorpayPaymentResult by remember { mutableStateOf<String?>(null) }
+    var isProcessingPayment by remember { mutableStateOf(false) }
+    
+    // Initialize payment gateway when screen loads
+    LaunchedEffect(paymentGateway) {
+        paymentGateway?.initialize(context)
+    }
+    
+    // Backup mechanism for payment proof dialog
+    LaunchedEffect(upiResultMessage) {
+        if (upiResultMessage != null) {
+            sharedPreferences.edit()
+                .putString("upi_result_message", upiResultMessage)
+                .putInt("selected_amount", selectedAmount)
+                .putString("manual_amount", manualAmount)
+                .putString("user_currency", userCurrency)
+                .apply()
+        } else {
+            sharedPreferences.edit()
+                .remove("upi_result_message")
+                .apply()
+        }
+    }
+    
+    // Restore state if needed
+    LaunchedEffect(Unit) {
+        if (upiResultMessage == null) {
+            val savedMessage = sharedPreferences.getString("upi_result_message", null)
+            if (savedMessage != null) {
+                upiResultMessage = savedMessage
+                selectedAmount = sharedPreferences.getInt("selected_amount", 0)
+                manualAmount = sharedPreferences.getString("manual_amount", "") ?: ""
+                userCurrency = sharedPreferences.getString("user_currency", "INR") ?: "INR"
+                
+                // Clear the backup after successful restore to prevent duplicate restores
+                sharedPreferences.edit()
+                    .remove("upi_result_message")
+                    .apply()
+            }
+        }
+    }
     
     LaunchedEffect(currentUser) {
         currentUser?.let { user ->
@@ -127,17 +255,141 @@ fun WalletScreen(
 
     // UPI Intent launcher (for Indian users)
     val upiLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val data: Intent? = result.data
-            val response = data?.getStringExtra("response")
-            if (response != null && response.contains("SUCCESS", ignoreCase = true)) {
-                upiResultMessage = "Payment successful!"
-                // TODO: Credit wallet, update Firestore, etc.
-            } else {
-                upiResultMessage = "Payment failed or cancelled."
+        Log.d("WalletScreen", "UPI Result - resultCode: ${result.resultCode}, data: ${result.data}")
+        
+        val data: Intent? = result.data
+        val response = data?.getStringExtra("response")
+        val txnId = data?.getStringExtra("txnId")
+        val status = data?.getStringExtra("Status")
+        
+        Log.d("WalletScreen", "UPI Response - response: $response, txnId: $txnId, status: $status")
+        
+        // Check for successful payment using multiple indicators
+        val isPaymentSuccessful = when {
+            // Check explicit success status
+            status.equals("SUCCESS", ignoreCase = true) -> {
+                Log.d("WalletScreen", "Payment successful detected via status: $status")
+                true
             }
+            // Check response for success indicators
+            response != null && (
+                response.contains("SUCCESS", ignoreCase = true) ||
+                response.contains("success", ignoreCase = true) ||
+                response.contains("COMPLETED", ignoreCase = true) ||
+                response.contains("completed", ignoreCase = true)
+            ) -> {
+                Log.d("WalletScreen", "Payment successful detected via response: $response")
+                true
+            }
+            // Check if we have a transaction ID (indicates payment was processed)
+            !txnId.isNullOrBlank() -> {
+                Log.d("WalletScreen", "Payment successful detected via transaction ID: $txnId")
+                true
+            }
+            // Special case: Some UPI apps return resultCode 0 with successful payments
+            // If user reports successful payment but we get resultCode 0 and null data,
+            // we should still consider it potentially successful
+            result.resultCode == Activity.RESULT_CANCELED && data == null -> {
+                Log.d("WalletScreen", "Potential successful payment - resultCode 0 with null data (some UPI apps do this)")
+                // For now, we'll be cautious and not auto-navigate, but we'll show a helpful message
+                false
+            }
+            // Default to failed if no clear success indicators
+            else -> {
+                Log.d("WalletScreen", "Payment NOT successful - status: '$status', response: '$response', txnId: '$txnId'")
+                false
+            }
+        }
+        
+        if (isPaymentSuccessful) {
+            Log.d("WalletScreen", "UPI Payment successful - processing...")
+            Log.d("WalletScreen", "Selected amount: $selectedAmount, Manual amount: '$manualAmount'")
+            
+            // Get the payment amount from the selected amount or manual amount
+            val paymentAmount = if (selectedAmount > 0) selectedAmount else manualAmount.toIntOrNull() ?: 0
+            
+            Log.d("WalletScreen", "Detected payment amount: $paymentAmount, User currency: $userCurrency")
+            
+            if (paymentAmount > 0) {
+                // Navigate to payment proof screen
+                Log.d("WalletScreen", "Attempting to navigate to payment proof screen...")
+                try {
+                    val upiAppPackage = sharedPreferences.getString("last_upi_app_package", null)
+                    Log.d("WalletScreen", "Retrieved UPI app package: $upiAppPackage")
+                    navController.navigate(ScreenRoutes.PaymentProofScreen(amount = paymentAmount.toDouble(), currency = userCurrency, upiAppPackage = upiAppPackage))
+                    Log.d("WalletScreen", "Navigation to payment proof screen initiated successfully")
+                } catch (e: Exception) {
+                    Log.e("WalletScreen", "Failed to navigate to payment proof screen", e)
+                    upiResultMessage = "Payment successful! Please go to wallet to submit proof."
+                }
+            } else {
+                // Fallback to showing success message if amount is not available
+                Log.w("WalletScreen", "Payment amount is 0 or invalid, showing success message instead")
+                upiResultMessage = "Payment successful! Your wallet will be updated shortly."
+            }
+            
+            // TODO: Credit wallet, update Firestore, etc.
         } else {
-            upiResultMessage = "Payment cancelled."
+            // Handle the case where payment might have been successful but we can't detect it
+            if (result.resultCode == Activity.RESULT_CANCELED && data == null) {
+                Log.d("WalletScreen", "Payment completed but confirmation unclear - showing manual verification message")
+                upiResultMessage = "Payment may have been successful! If you completed the payment, please check your email/SMS for confirmation and contact support if needed."
+            } else {
+                Log.d("WalletScreen", "UPI Payment failed or cancelled")
+                upiResultMessage = "Payment failed or cancelled. Please try again."
+            }
+        }
+    }
+
+    // Razorpay activity result launcher
+    val razorpayLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        Log.d("WalletScreen", "Razorpay Result - resultCode: ${result.resultCode}")
+        
+        // Razorpay results are handled by the PaymentResultListener in RazorpayManager
+        // This launcher is mainly for completing the activity flow
+        isProcessingPayment = false
+        
+        if (result.resultCode == Activity.RESULT_OK) {
+            // Payment was successful, the actual result is handled by RazorpayManager's onPaymentSuccess
+            Log.d("WalletScreen", "Razorpay activity completed successfully")
+        } else {
+            // Payment was cancelled or failed, actual error handled by RazorpayManager's onPaymentError
+            Log.d("WalletScreen", "Razorpay activity cancelled or failed")
+        }
+    }
+
+    // Razorpay payment handler
+    fun handleRazorpayPayment(activity: Activity, amount: Double, currency: String) {
+        isProcessingPayment = true
+        
+        paymentGateway?.startPayment(
+            activity = activity,
+            amountMinorUnits = (amount * 100).toLong(), // Convert to paise
+            currency = currency,
+            orderId = null, // Will be created by server
+            customerEmail = currentUser?.email,
+            customerPhone = null, // Could be fetched from user profile
+            metadata = mapOf(
+                "userId" to (currentUser?.uid ?: ""),
+                "transactionType" to "deposit"
+            )
+        ) { success, transactionId, errorMessage ->
+            isProcessingPayment = false
+            
+            if (success) {
+                Log.d("WalletScreen", "Razorpay payment successful - transactionId: $transactionId")
+                // For Razorpay, we don't need payment proof screen as it's handled by webhook
+                upiResultMessage = "Payment successful! Your wallet will be updated shortly."
+                // TODO: Create pending deposit record and update wallet
+                
+                // Refresh wallet data after successful payment
+                currentUser?.uid?.let { userId ->
+                    walletViewModel.loadWalletData(userId)
+                }
+            } else {
+                Log.e("WalletScreen", "Razorpay payment failed: $errorMessage")
+                upiResultMessage = "Payment failed: ${errorMessage ?: "Unknown error"}"
+            }
         }
     }
 
@@ -202,12 +454,12 @@ fun WalletScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212)) // Dark background
+            .background(DarkBackground)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF121212))
+                .background(DarkBackground)
                 .statusBarPadding()
         ) {
             // KYC Banner at the very top
@@ -243,10 +495,10 @@ fun WalletScreen(
                         }
                     }
                 }
-                Divider(color = Color(0xFFFFE082), thickness = 1.dp)
+                HorizontalDivider(thickness = 1.dp, color = Color(0xFFFFE082))
             }
-            // Top Bar
-            WalletTopBar(walletBalance = walletBalance, currency = userCurrency)
+            // Improved Top Bar with better hierarchy
+            ImprovedWalletTopBar(totalBalance = walletBalance, currency = userCurrency)
 
             if (!isAuthenticated) {
                 Box(
@@ -315,9 +567,10 @@ fun WalletScreen(
                     contentPadding = PaddingValues(bottom = 80.dp), // Space for bottom nav
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Balance Card
+                    // Enhanced Balance Card with better visual hierarchy
                     item {
-                        BalanceCard(
+                        EnhancedBalanceCard(
+                            totalBalance = walletBalance,
                             withdrawableBalance = withdrawableBalance,
                             bonusBalance = bonusBalance,
                             currency = userCurrency,
@@ -326,9 +579,9 @@ fun WalletScreen(
                         )
                     }
 
-                    // Quick Actions
+                    // Enhanced Quick Actions
                     item {
-                        QuickActions(
+                        EnhancedQuickActions(
                             onDepositClick = { 
                                 if (userCountry.equals("Nigeria", ignoreCase = true) || userCountry.equals("NG", ignoreCase = true)) {
                                     showNGNDepositDialog = true
@@ -336,6 +589,7 @@ fun WalletScreen(
                                     showAmountSheet = true
                                 }
                             },
+                            onWithdrawClick = { showWithdrawDialog = true },
                             userCountry = userCountry,
                             enabled = (kycStatus?.lowercase() == "verified")
                         )
@@ -402,7 +656,7 @@ fun WalletScreen(
                         }
                     } else {
                         items(transactions) { transaction ->
-                            TransactionItem(transaction, userCurrency)
+                            EnhancedTransactionItem(transaction, userCurrency)
                         }
                     }
                 }
@@ -412,6 +666,71 @@ fun WalletScreen(
 
     // Indian UPI Payment Sheet
     if (showAmountSheet) {
+        var upiId by remember { mutableStateOf("") }
+        var merchantName by remember { mutableStateOf("NetWin") }
+        
+        // Fetch UPI settings from Firestore
+        LaunchedEffect(Unit) {
+            Log.w("WalletScreen", "=== UPI FETCH STARTED ===")
+            try {
+                Log.w("WalletScreen", "Starting UPI settings fetch...")
+                val firestore = FirebaseFirestore.getInstance()
+                val upiConfigRef = firestore.collection("admin_config").document("upi_settings")
+                Log.w("WalletScreen", "Fetching from path: admin_config/upi_settings")
+                
+                val doc = upiConfigRef.get().await()
+                
+                Log.w("WalletScreen", "Document exists: ${doc.exists()}")
+                Log.w("WalletScreen", "Document data: ${doc.data}")
+                
+                if (doc.exists()) {
+                    // Try different possible field names
+                    val possibleUpiFields = listOf("upiId", "upi_id", "UPI_ID", "upi")
+                    val possibleNameFields = listOf("merchantName", "merchant_name", "name", "businessName", "displayName")
+                    
+                    var fetchedUpiId: String? = null
+                    var fetchedMerchantName: String? = null
+                    
+                    // Try to find UPI ID with different field names
+                    for (field in possibleUpiFields) {
+                        fetchedUpiId = doc.getString(field)
+                        if (!fetchedUpiId.isNullOrBlank()) {
+                            Log.w("WalletScreen", "Found UPI ID in field '$field': '$fetchedUpiId'")
+                            break
+                        }
+                    }
+                    
+                    // Try to find merchant name with different field names
+                    for (field in possibleNameFields) {
+                        fetchedMerchantName = doc.getString(field)
+                        if (!fetchedMerchantName.isNullOrBlank()) {
+                            Log.w("WalletScreen", "Found merchant name in field '$field': '$fetchedMerchantName'")
+                            break
+                        }
+                    }
+                    
+                    Log.w("WalletScreen", "Final fetched UPI ID: '$fetchedUpiId'")
+                    Log.w("WalletScreen", "Final fetched Merchant Name: '$fetchedMerchantName'")
+                    
+                    if (!fetchedUpiId.isNullOrBlank()) {
+                        upiId = fetchedUpiId.trim()
+                        merchantName = fetchedMerchantName?.trim() ?: "NetWin"
+                        Log.w("WalletScreen", "✅ SUCCESS - UPI ID: '$upiId', Merchant: '$merchantName'")
+                    } else {
+                        Log.e("WalletScreen", "❌ ERROR - No valid UPI ID found in any field")
+                        upiId = ""
+                    }
+                } else {
+                    Log.e("WalletScreen", "❌ ERROR - UPI settings document does not exist at admin_config/upi_settings")
+                    upiId = ""
+                }
+            } catch (e: Exception) {
+                Log.e("WalletScreen", "❌ ERROR - Failed to fetch UPI settings: ${e.message}", e)
+                upiId = ""
+            }
+            Log.w("WalletScreen", "=== UPI FETCH COMPLETED ===")
+        }
+        
         ModalBottomSheet(
             onDismissRequest = { showAmountSheet = false },
             sheetState = amountSheetState
@@ -462,29 +781,98 @@ fun WalletScreen(
                         unfocusedLabelColor = Color.Gray
                     )
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+//
+//                // Debug info for UPI ID loading
+//                if (upiId.isBlank()) {
+//                    Text(
+//                        "Loading UPI settings...",
+//                        color = Color.Gray,
+//                        fontSize = 12.sp,
+//                        modifier = Modifier.padding(bottom = 8.dp)
+//                    )
+//                } else {
+//                    Text(
+//                        "UPI ID: $upiId",
+//                        color = Color.Gray,
+//                        fontSize = 12.sp,
+//                        modifier = Modifier.padding(bottom = 8.dp)
+//                    )
+//                }
+//
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                val currentAmount = if (selectedAmount > 0) selectedAmount else manualAmount.toIntOrNull() ?: 0
+                val isAmountValid = currentAmount > 0
+                val isUpiReady = upiId.isNotBlank()
+                
                 Button(
                     onClick = {
                         val amount = if (selectedAmount > 0) selectedAmount else manualAmount.toIntOrNull() ?: 0
+                        Log.d("WalletScreen", "Payment - Amount: $amount, Currency: $userCurrency")
+                        
                         if (amount > 0) {
-                            // Build UPI URI with correct values
-                            val upiId = "netwin@upi" // Set your actual UPI ID here
-                            val name = "NetWin" // Set your app name here
-                            val upiUri = Uri.parse(
-                                "upi://pay?pa=$upiId&pn=$name&am=$amount&cu=INR&tn=Wallet+Deposit"
-                            )
-                            val intent = Intent(Intent.ACTION_VIEW, upiUri)
                             coroutineScope.launch {
                                 showAmountSheet = false
-                                upiLauncher.launch(intent)
+                                
+                                // Use Razorpay for Indian users, fallback to UPI for other cases
+                                if (userCurrency == "INR" && paymentGateway != null) {
+                                    try {
+                                        handleRazorpayPayment(context as Activity, amount.toDouble(), userCurrency)
+                                    } catch (e: Exception) {
+                                        Log.e("WalletScreen", "Failed to start Razorpay payment", e)
+                                        upiResultMessage = "Failed to start payment: ${e.message}"
+                                    }
+                                } else {
+                                    // Fallback to manual UPI for non-INR or if Razorpay fails
+                                    if (upiId.isNotBlank()) {
+                                        // Build UPI URI with dynamically fetched values
+                                        val upiUri = Uri.parse(
+                                            "upi://pay?pa=$upiId&pn=$merchantName&am=$amount&cu=INR&tn=Wallet+Deposit"
+                                        )
+                                        Log.d("WalletScreen", "UPI URI: $upiUri")
+                                        val intent = Intent(Intent.ACTION_VIEW, upiUri)
+                                        
+                                        // Try to resolve the UPI app package name before launching
+                                        val packageManager = context.packageManager
+                                        val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                                        val upiAppPackage = resolveInfo?.activityInfo?.packageName
+                                        
+                                        if (upiAppPackage != null) {
+                                            Log.d("WalletScreen", "Resolved UPI app package: $upiAppPackage")
+                                            sharedPreferences.edit().putString("last_upi_app_package", upiAppPackage).apply()
+                                        } else {
+                                            Log.w("WalletScreen", "Could not resolve UPI app package name")
+                                        }
+                                        
+                                        upiLauncher.launch(intent)
+                                    } else {
+                                        Log.e("WalletScreen", "Invalid payment - Amount: $amount, UPI ID: '$upiId'")
+                                        upiResultMessage = "Payment configuration error. Please contact support."
+                                    }
+                                }
                             }
+                        } else {
+                            Log.e("WalletScreen", "Invalid payment amount: $amount")
                         }
                     },
-                    enabled = (selectedAmount > 0) || (manualAmount.toIntOrNull() ?: 0 > 0),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00BCD4)),
+                    enabled = isAmountValid && (userCurrency == "INR" || isUpiReady),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isAmountValid && (userCurrency == "INR" || isUpiReady)) Color(0xFF00BCD4) else Color.Gray,
+                        disabledContainerColor = Color.Gray
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Proceed", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = when {
+                            !isAmountValid -> "Enter Amount"
+                            userCurrency == "INR" -> "Pay with Razorpay"
+                            !isUpiReady -> "Loading..."
+                            else -> "Pay with UPI"
+                        },
+                        color = if (isAmountValid && (userCurrency == "INR" || isUpiReady)) Color.Black else Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(onClick = { showAmountSheet = false }) {
@@ -561,13 +949,54 @@ fun WalletScreen(
 
     // Show UPI result message
     upiResultMessage?.let { msg ->
+        val isUncertainSuccess = msg.contains("may have been successful", ignoreCase = true) || 
+                               msg.contains("Payment completed but confirmation unclear", ignoreCase = true)
+        
         AlertDialog(
             onDismissRequest = { upiResultMessage = null },
             title = { Text("UPI Payment") },
-            text = { Text(msg) },
+            text = { 
+                Column {
+                    Text(msg)
+                    if (isUncertainSuccess) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "If you're sure the payment was successful, you can proceed to submit proof.",
+                            color = Color.Gray,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            },
             confirmButton = {
-                Button(onClick = { upiResultMessage = null }) {
-                    Text("OK")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isUncertainSuccess) {
+                        TextButton(
+                            onClick = {
+                                // Get the payment amount and navigate to payment proof screen
+                                val paymentAmount = if (selectedAmount > 0) selectedAmount else manualAmount.toIntOrNull() ?: 0
+                                if (paymentAmount > 0) {
+                                    try {
+                                        val upiAppPackage = sharedPreferences.getString("last_upi_app_package", null)
+                                        navController.navigate(ScreenRoutes.PaymentProofScreen(amount = paymentAmount.toDouble(), currency = userCurrency, upiAppPackage = upiAppPackage))
+                                        Log.d("WalletScreen", "Manual verification - navigating to payment proof screen")
+                                    } catch (e: Exception) {
+                                        Log.e("WalletScreen", "Failed to navigate to payment proof screen", e)
+                                    }
+                                }
+                                upiResultMessage = null
+                            }
+                        ) {
+                            Text("Submit Proof", color = Color(0xFF00BCD4))
+                        }
+                    }
+                    Button(
+                        onClick = { upiResultMessage = null }
+                    ) {
+                        Text("OK")
+                    }
                 }
             }
         )
@@ -1462,5 +1891,641 @@ fun WithdrawalRequestItem(request: WithdrawalRequest, currency: String) {
 private fun formatDate(timestamp: Timestamp?): String {
     if (timestamp == null) return "Unknown"
     val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+    return sdf.format(timestamp.toDate())
+}
+
+// Enhanced Components for MVP-Ready Wallet Screen
+
+@Composable
+private fun ImprovedWalletTopBar(totalBalance: Double, currency: String) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(DarkBackground)
+           // .statusBarPadding()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "Wallet",
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+        // Simplified top balance - less prominent than main balance card
+//        Text(
+//            NGNTransactionUtils.formatAmount(totalBalance, currency),
+//            color = Color.Gray,
+//            fontSize = 14.sp,
+//            fontWeight = FontWeight.Medium
+//        )
+        Surface (
+//            color = NetwinTokens.SurfaceAlt,
+//            shape = RoundedCornerShape(12.dp),
+//            border = BorderStroke(1.dp, NetwinTokens.Primary.copy(alpha = 0.24f))
+            shape = RoundedCornerShape(12.dp),
+            border =  BorderStroke(
+                1.dp,
+                Brush.horizontalGradient(listOf(NetWinPurple, NetWinPink, NetWinCyan))
+            )
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Icon(
+                    Icons.Default.AccountBalanceWallet,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    // Use the new tidy formatter here as well for consistency
+                    NGNTransactionUtils.formatAmountTidy(totalBalance, currency),
+                    modifier = Modifier.padding(start = 6.dp),
+                    color = NetwinTokens.TextPrimary,
+                    fontSize = MaterialTheme.typography.bodyMedium.fontSize
+                )
+            }
+        }
+
+
+    }
+}
+
+@Composable
+private fun EnhancedBalanceCard(
+    totalBalance: Double,
+    withdrawableBalance: Double,
+    bonusBalance: Double,
+    currency: String,
+    onWithdrawClick: () -> Unit,
+    enabled: Boolean
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = DarkCard
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            // Tabbed Balance Display - Esports Style
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // User Added Balance Tab
+                EsportsBalanceTab(
+                    label = "User Added Balance",
+                    amount = NGNTransactionUtils.formatAmountTidy(withdrawableBalance, currency),
+                    color = NetWinCyan,
+                    isSelected = true,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Bonus Winnings Tab
+                EsportsBalanceTab(
+                    label = "Bonus Winnings",
+                    amount = NGNTransactionUtils.formatAmountTidy(bonusBalance, currency),
+                    color = WarningYellow,
+                    isSelected = false,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BalanceInfoItem(
+    label: String,
+    amount: String,
+    color: Color,
+    icon: ImageVector
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            color = Color.Gray,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = amount,
+            color = color,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun EnhancedQuickActions(
+    onDepositClick: () -> Unit,
+    onWithdrawClick: () -> Unit,
+    userCountry: String,
+    enabled: Boolean
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp)
+    ) {
+        Text(
+            text = "Quick Actions",
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Add Cash Button - Green
+            EsportsActionButton(
+                icon = Icons.Default.Add,
+                label = "Add Cash",
+                onClick = onDepositClick,
+                enabled = enabled,
+                backgroundColor = SuccessGreen,
+                modifier = Modifier.weight(1f)
+            )
+            
+            // Withdraw Button - Red
+            EsportsActionButton(
+                icon = Icons.Default.GetApp,
+                label = "Withdraw",
+                onClick = onWithdrawClick,
+                enabled = enabled,
+                backgroundColor = ErrorRed,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EnhancedActionButton(
+    icon: ImageVector,
+    label: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    gradient: List<Color>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .height(60.dp)
+            .clickable(enabled = enabled, onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = if (enabled) Brush.horizontalGradient(gradient) 
+                           else Brush.horizontalGradient(listOf(Color.Gray, Color.Gray)),
+                    shape = RoundedCornerShape(12.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = label,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = subtitle,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 10.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EnhancedTransactionItem(transaction: Transaction, currency: String) {
+    var isExpanded by remember { mutableStateOf(false) }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clickable { isExpanded = !isExpanded },
+        colors = CardDefaults.cardColors(
+            containerColor = DarkSurface
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Enhanced transaction icon with gradient background
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = when (transaction.type) {
+                                        TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT -> listOf(SuccessGreen, SuccessGreen.copy(alpha = 0.7f))
+                                        TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL -> listOf(ErrorRed, ErrorRed.copy(alpha = 0.7f))
+                                        TransactionType.TOURNAMENT_ENTRY -> listOf(NetWinPurple, NetWinPink)
+                                        TransactionType.TOURNAMENT_WINNING -> listOf(WarningYellow, WarningYellow.copy(alpha = 0.7f))
+                                        else -> listOf(Color.Gray, Color.Gray.copy(alpha = 0.7f))
+                                    }
+                                ),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = when (transaction.type) {
+                                TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT -> Icons.Default.Add
+                                TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL -> Icons.Default.Remove
+                                TransactionType.TOURNAMENT_ENTRY -> Icons.Default.PlayArrow
+                                TransactionType.TOURNAMENT_WINNING -> Icons.Default.EmojiEvents
+                                else -> Icons.Default.Info
+                            },
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(12.dp))
+                    
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = transaction.description,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = if (isExpanded) Int.MAX_VALUE else 1
+                        )
+                        Text(
+                            text = formatTransactionDate(transaction.createdAt),
+                            color = Color.Gray,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        text = "${if (transaction.type in listOf(TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT, TransactionType.TOURNAMENT_WINNING)) "+" else "-"}${NGNTransactionUtils.formatAmount(transaction.amount, currency)}",
+                        color = when (transaction.type) {
+                            TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT, TransactionType.TOURNAMENT_WINNING -> SuccessGreen
+                            TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL, TransactionType.TOURNAMENT_ENTRY -> ErrorRed
+                            else -> Color.Gray
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    // Enhanced status chip
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = when (transaction.status) {
+                                    TransactionStatus.COMPLETED -> SuccessGreen.copy(alpha = 0.2f)
+                                    TransactionStatus.PENDING -> WarningYellow.copy(alpha = 0.2f)
+                                    TransactionStatus.FAILED -> ErrorRed.copy(alpha = 0.2f)
+                                    else -> Color.Gray.copy(alpha = 0.2f)
+                                },
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = transaction.status.name.lowercase().replaceFirstChar { it.uppercase() },
+                            color = when (transaction.status) {
+                                TransactionStatus.COMPLETED -> SuccessGreen
+                                TransactionStatus.PENDING -> WarningYellow
+                                TransactionStatus.FAILED -> ErrorRed
+                                else -> Color.Gray
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                
+                // Expand/Collapse indicator
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            
+            // Expanded content
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier.padding(top = 12.dp)
+                ) {
+                    Divider(color = Color.Gray.copy(alpha = 0.3f))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "Transaction Details",
+                        color = NetWinCyan,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    TransactionDetailRow("Type", transaction.type.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() })
+                    TransactionDetailRow("Amount", NGNTransactionUtils.formatAmount(transaction.amount, currency))
+                    TransactionDetailRow("Status", transaction.status.name.lowercase().replaceFirstChar { it.uppercase() })
+                    TransactionDetailRow("Date", formatTransactionDate(transaction.createdAt))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransactionDetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            color = Color.Gray,
+            fontSize = 12.sp
+        )
+        Text(
+            text = value,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+private fun formatTransactionDate(timestamp: Timestamp?): String {
+    if (timestamp == null) return "Unknown"
+    val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
+    return sdf.format(timestamp.toDate())
+}
+
+// New Esports-Style Components
+
+@Composable
+private fun EsportsBalanceTab(
+    label: String,
+    amount: String,
+    color: Color,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .height(80.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) DarkCard else DarkSurface
+        ),
+        shape = RoundedCornerShape(12.dp),
+        border = if (isSelected) BorderStroke(
+            1.dp, 
+            Brush.horizontalGradient(listOf(NetWinPurple, NetWinPink, NetWinCyan))
+        ) else BorderStroke(1.dp, Color.Gray.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = label,
+                color = Color.Gray,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+            Text(
+                text = amount,
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            if (isSelected) {
+                Icon(
+                    Icons.Default.AccountBalanceWallet,
+                    contentDescription = null,
+                    tint = NetWinCyan,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EsportsActionButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    backgroundColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(56.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = backgroundColor,
+            disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun EsportsTransactionItem(
+    transaction: Transaction,
+    currency: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = DarkSurface
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                // Transaction Type Icon
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = when (transaction.type) {
+                                TransactionType.TOURNAMENT_ENTRY -> NetWinPurple.copy(alpha = 0.2f)
+                                TransactionType.TOURNAMENT_WINNING -> WarningYellow.copy(alpha = 0.2f)
+                                TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT -> SuccessGreen.copy(alpha = 0.2f)
+                                TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL -> ErrorRed.copy(alpha = 0.2f)
+                                else -> Color.Gray.copy(alpha = 0.2f)
+                            },
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = when (transaction.type) {
+                            TransactionType.TOURNAMENT_ENTRY -> Icons.Default.PlayArrow
+                            TransactionType.TOURNAMENT_WINNING -> Icons.Default.EmojiEvents
+                            TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT -> Icons.Default.Add
+                            TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL -> Icons.Default.Remove
+                            else -> Icons.Default.Info
+                        },
+                        contentDescription = null,
+                        tint = when (transaction.type) {
+                            TransactionType.TOURNAMENT_ENTRY -> NetWinPurple
+                            TransactionType.TOURNAMENT_WINNING -> WarningYellow
+                            TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT -> SuccessGreen
+                            TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL -> ErrorRed
+                            else -> Color.Gray
+                        },
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column {
+                    Text(
+                        text = transaction.description,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = formatEsportsDate(transaction.createdAt),
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+            
+            Column(
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = "${if (transaction.type in listOf(TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT, TransactionType.TOURNAMENT_WINNING)) "+" else "-"}${NGNTransactionUtils.formatAmount(transaction.amount, currency)}",
+                    color = when (transaction.type) {
+                        TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT, TransactionType.TOURNAMENT_WINNING -> SuccessGreen
+                        TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL, TransactionType.TOURNAMENT_ENTRY -> ErrorRed
+                        else -> Color.Gray
+                    },
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                // Status Badge
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = when (transaction.status) {
+                                TransactionStatus.COMPLETED -> SuccessGreen
+                                TransactionStatus.PENDING -> WarningYellow
+                                TransactionStatus.FAILED -> ErrorRed
+                                else -> Color.Gray
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = transaction.status.name.lowercase().replaceFirstChar { it.uppercase() },
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatEsportsDate(timestamp: Timestamp?): String {
+    if (timestamp == null) return "Unknown"
+    val sdf = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault())
     return sdf.format(timestamp.toDate())
 }

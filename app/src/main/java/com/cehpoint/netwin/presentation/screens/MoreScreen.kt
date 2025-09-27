@@ -367,28 +367,28 @@ private fun QuickStatsSection(user: User) {
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         StatItem(
+            icon = Icons.Outlined.EmojiEvents,
             value = user.tournamentsJoined.toString(),
-            label = "Tournaments",
-            icon = Icons.Outlined.EmojiEvents
+            label = "Tournaments"
         )
         StatItem(
+            icon = Icons.Outlined.Star,
             value = user.matchesWon.toString(),
-            label = "Wins",
-            icon = Icons.Outlined.Star
+            label = "Wins"
         )
         StatItem(
+            icon = Icons.Outlined.AccountBalanceWallet,
             value = "₹${user.totalEarnings}",
-            label = "Earnings",
-            icon = Icons.Outlined.AccountBalanceWallet
+            label = "Earnings"
         )
     }
 }
 
 @Composable
 private fun StatItem(
+    icon: ImageVector,
     value: String,
-    label: String,
-    icon: ImageVector
+    label: String
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally

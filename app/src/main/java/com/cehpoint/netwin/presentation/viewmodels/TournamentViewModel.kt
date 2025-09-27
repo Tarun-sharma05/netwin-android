@@ -11,6 +11,7 @@ import com.cehpoint.netwin.domain.model.RegistrationStepData
 import com.cehpoint.netwin.domain.model.RegistrationStep
 import com.cehpoint.netwin.domain.repository.TournamentRepository
 import com.cehpoint.netwin.domain.repository.UserRepository
+import com.google.firebase.auth.FirebaseAuth
 import com.cehpoint.netwin.domain.repository.WalletRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.combine
 import com.cehpoint.netwin.presentation.events.RegistrationFlowEvent
 import com.cehpoint.netwin.utils.NetworkStateMonitor
 import com.cehpoint.netwin.utils.RetryUtils
+import kotlinx.coroutines.flow.update
 
 data class TournamentState(
     val tournaments: List<Tournament> = emptyList(),
@@ -97,6 +99,13 @@ class TournamentViewModel @Inject constructor(
     private val _lastProcessedTournamentId = MutableStateFlow<String?>(null)
     val lastProcessedTournamentId: StateFlow<String?> = _lastProcessedTournamentId.asStateFlow()
 
+    // User-specific data
+    private val _userCountry = MutableStateFlow("India")
+    val userCountry: StateFlow<String> = _userCountry.asStateFlow()
+
+    private val _userCurrency = MutableStateFlow("INR")
+    val userCurrency: StateFlow<String> = _userCurrency.asStateFlow()
+
     // NEW: Dedicated refresh state
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -134,6 +143,10 @@ class TournamentViewModel @Inject constructor(
     private val _networkAvailable = MutableStateFlow(true)
     val networkAvailable: StateFlow<Boolean> = _networkAvailable.asStateFlow()
 
+    // State for My Tournaments screen
+    private val _myTournamentsUiState = MutableStateFlow(MyTournamentsUiState())
+    val myTournamentsUiState: StateFlow<MyTournamentsUiState> = _myTournamentsUiState.asStateFlow()
+
     // Retry State Management
     private val _retryCount = MutableStateFlow(0)
     val retryCount: StateFlow<Int> = _retryCount.asStateFlow()
@@ -142,6 +155,12 @@ class TournamentViewModel @Inject constructor(
     val isRetrying: StateFlow<Boolean> = _isRetrying.asStateFlow()
 
     // RegistrationUiState data class for exposing immutable UI state
+        data class MyTournamentsUiState(
+        val tournaments: List<Tournament> = emptyList(),
+        val isLoading: Boolean = false,
+        val error: String? = null
+    )
+
     data class RegistrationUiState(
         val step: RegistrationStep,
         val data: RegistrationStepData,
@@ -241,7 +260,7 @@ class TournamentViewModel @Inject constructor(
         Log.d("TournamentViewModel", "=== onRegistrationEvent ENTRY ===")
         Log.d("TournamentViewModel", "Event type: ${event::class.simpleName}")
         Log.d("TournamentViewModel", "Current step: ${_currentStep.value}")
-        Log.d("TournamentViewModel", "Current data: inGameId='${_stepData.value.inGameId}', teamName='${_stepData.value.teamName}', paymentMethod='${_stepData.value.paymentMethod}', termsAccepted=${_stepData.value.termsAccepted}")
+        Log.d("TournamentViewModel", "Current data: playerIds='${_stepData.value.playerIds.joinToString()}', teamName='${_stepData.value.teamName}', paymentMethod='${_stepData.value.paymentMethod}', termsAccepted=${_stepData.value.termsAccepted}")
         
         when (event) {
             is RegistrationFlowEvent.UpdateData -> {
@@ -420,7 +439,7 @@ class TournamentViewModel @Inject constructor(
                                 userId = userId,
                                 displayName = displayName,
                                 teamName = currentData.teamName,
-                                inGameId = currentData.inGameId
+                                playerIds = currentData.playerIds
                             )
                         }
                         
@@ -543,6 +562,66 @@ class TournamentViewModel @Inject constructor(
         _isRegistering.value = false
     }
 
+    /**
+     * Fetches tournaments that the current user has registered for
+     */
+    fun getRegisteredTournaments() {
+        viewModelScope.launch {
+            try {
+                _myTournamentsUiState.update { it.copy(isLoading = true, error = null) }
+                
+                val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                if (userId.isBlank()) {
+                    _myTournamentsUiState.update { it.copy(
+                        isLoading = false,
+                        error = "User not authenticated"
+                    ) }
+                    return@launch
+                }
+                
+                // Get registered tournament IDs for the user
+                val registeredTournamentIds = repository.getUserTournamentRegistrations(userId)
+                
+                if (registeredTournamentIds.isEmpty()) {
+                    _myTournamentsUiState.update { it.copy(
+                        tournaments = emptyList(),
+                        isLoading = false,
+                        error = null
+                    ) }
+                    return@launch
+                }
+                
+                // Fetch full tournament details for each registered tournament
+                val tournaments = registeredTournamentIds.mapNotNull { tournamentId ->
+                    repository.getTournamentById(tournamentId)
+                }.sortedBy { it.startTime } // Sort by start time
+                
+                _myTournamentsUiState.update { it.copy(
+                    tournaments = tournaments,
+                    isLoading = false,
+                    error = null
+                ) }
+                
+            } catch (e: Exception) {
+                _myTournamentsUiState.update { it.copy(
+                    isLoading = false,
+                    error = e.message ?: "Failed to load tournaments"
+                ) }
+            }
+        }
+    }
+    
+    /**
+     * Refreshes the list of registered tournaments
+     */
+    fun refreshTournaments() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            getRegisteredTournaments()
+            _isRefreshing.value = false
+        }
+    }
+
 
     init {
         // Log state restoration for debugging
@@ -576,10 +655,18 @@ class TournamentViewModel @Inject constructor(
                 _userName.value = user?.username?.takeIf { it.isNotBlank() }
                     ?: user?.displayName?.takeIf { it.isNotBlank() }
                     ?: "Gamer"
+
+                // Set country and currency from the fetched user data
+                val country = user?.country ?: "India"
+                _userCountry.value = country
+                _userCurrency.value = if (country.equals("Nigeria", true) || country.equals("NG", true)) "NGN" else "INR"
+                Log.d("TournamentViewModel", "Fetched user details. Country: ${user?.country}, Currency: ${_userCurrency.value}")
                     }
                 } catch (e: Exception) {
                     Log.e("TournamentViewModel", "Error fetching user data", e)
                     _userName.value = "Gamer"
+                    _userCountry.value = "India"
+                    _userCurrency.value = "INR"
                 }
             }
         }

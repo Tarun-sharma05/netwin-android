@@ -3,6 +3,7 @@ package com.cehpoint.netwin.presentation.viewmodels
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.Immutable
 import com.cehpoint.netwin.data.model.KycStatus
 import com.cehpoint.netwin.data.model.OfflineOperation
 import com.cehpoint.netwin.data.model.PaginationParams
@@ -22,6 +23,30 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+// Dialog state for controlling payment-related UI across configuration changes and process death
+@Immutable
+sealed class PaymentDialogState {
+    object Closed : PaymentDialogState()
+    data class UpiPayment(
+        val amount: Double,
+        val upiId: String?,
+        val merchantName: String?,
+        val lastLaunchedAppPackage: String? = null
+    ) : PaymentDialogState()
+
+    data class NgnDeposit(
+        val amount: Double
+    ) : PaymentDialogState()
+
+    data class Withdraw(
+        val amount: Double
+    ) : PaymentDialogState()
+
+    data class Error(
+        val message: String
+    ) : PaymentDialogState()
+}
 
 @HiltViewModel
 class WalletViewModel @Inject constructor(
@@ -65,6 +90,10 @@ class WalletViewModel @Inject constructor(
 
     private val _bonusBalance = MutableStateFlow(0.0)
     val bonusBalance: StateFlow<Double> = _bonusBalance.asStateFlow()
+
+    // Payment dialog state to survive lifecycle changes
+    private val _paymentDialogState = MutableStateFlow<PaymentDialogState>(PaymentDialogState.Closed)
+    val paymentDialogState: StateFlow<PaymentDialogState> = _paymentDialogState.asStateFlow()
 
     // Network state
     private val _isOnline = MutableStateFlow(true)
@@ -125,6 +154,23 @@ class WalletViewModel @Inject constructor(
         }
     }
 
+    private fun mapExceptionToUserMessage(throwable: Throwable): String {
+        val rawMessage = throwable.message?.lowercase() ?: ""
+        return when {
+            "network" in rawMessage || "offline" in rawMessage || "internet" in rawMessage ->
+                "Network issue detected. Please check your internet connection and try again."
+            "timeout" in rawMessage ->
+                "Request timed out. Please try again."
+            "duplicate" in rawMessage ->
+                "This looks like a duplicate request. Please wait a moment and check your wallet."
+            "insufficient" in rawMessage ->
+                throwable.message ?: "Insufficient balance for this operation."
+            "unsupported currency" in rawMessage ->
+                "Selected currency is not supported for this operation."
+            else -> throwable.message ?: "Something went wrong. Please try again."
+        }
+    }
+
     fun createDepositRequest(userId: String, amount: Double, upiRefId: String, userUpiId: String, screenshotUrl: String?) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -158,7 +204,7 @@ class WalletViewModel @Inject constructor(
                     Log.d("WalletViewModel", "Deposit request queued for offline processing")
                 }
             } catch (e: Exception) {
-                _error.value = "Failed to create deposit request: ${e.message}"
+                _error.value = "Failed to create deposit request: ${mapExceptionToUserMessage(e)}"
                 Log.e("WalletViewModel", "Error creating deposit request", e)
             } finally {
                 _isLoading.value = false
@@ -210,7 +256,7 @@ class WalletViewModel @Inject constructor(
                     Log.d("WalletViewModel", "Withdrawal request queued for offline processing")
                 }
             } catch (e: Exception) {
-                _error.value = "Failed to create withdrawal request: ${e.message}"
+                _error.value = "Failed to create withdrawal request: ${mapExceptionToUserMessage(e)}"
                 Log.e("WalletViewModel", "Error creating withdrawal request", e)
             } finally {
                 _isLoading.value = false
@@ -368,11 +414,11 @@ class WalletViewModel @Inject constructor(
                     
                     Log.d("WalletViewModel", "Loaded ${paginationResult.items.size} more transactions. Total: ${currentTransactions.size}, hasMore: ${paginationResult.hasMore}")
                 }.onFailure { e ->
-                    _error.value = "Failed to load more transactions: ${e.message}"
+                    _error.value = "Failed to load more transactions: ${mapExceptionToUserMessage(e)}"
                     Log.e("WalletViewModel", "Failed to load more transactions", e)
                 }
             } catch (e: Exception) {
-                _error.value = "Failed to load more transactions: ${e.message}"
+                _error.value = "Failed to load more transactions: ${mapExceptionToUserMessage(e)}"
                 Log.e("WalletViewModel", "Error loading more transactions", e)
             } finally {
                 _isLoadingMore.value = false
@@ -400,7 +446,7 @@ class WalletViewModel @Inject constructor(
                 Log.e("WalletViewModel", "Failed to load initial transactions", e)
             }
         } catch (e: Exception) {
-            _error.value = "Failed to load transactions: ${e.message}"
+            _error.value = "Failed to load transactions: ${mapExceptionToUserMessage(e)}"
             Log.e("WalletViewModel", "Error loading initial transactions", e)
         }
     }
@@ -497,6 +543,32 @@ class WalletViewModel @Inject constructor(
 
     fun clearError() {
         _error.value = null
+    }
+
+    // Exposed helpers for UI to control dialog state safely
+    fun openUpiPaymentDialog(amount: Double, upiId: String?, merchantName: String?, lastAppPackage: String?) {
+        _paymentDialogState.value = PaymentDialogState.UpiPayment(
+            amount = amount,
+            upiId = upiId,
+            merchantName = merchantName,
+            lastLaunchedAppPackage = lastAppPackage
+        )
+    }
+
+    fun openNgnDepositDialog(amount: Double) {
+        _paymentDialogState.value = PaymentDialogState.NgnDeposit(amount)
+    }
+
+    fun openWithdrawDialog(amount: Double) {
+        _paymentDialogState.value = PaymentDialogState.Withdraw(amount)
+    }
+
+    fun closePaymentDialog() {
+        _paymentDialogState.value = PaymentDialogState.Closed
+    }
+
+    fun setPaymentDialogError(message: String) {
+        _paymentDialogState.value = PaymentDialogState.Error(message)
     }
 
     override fun onCleared() {

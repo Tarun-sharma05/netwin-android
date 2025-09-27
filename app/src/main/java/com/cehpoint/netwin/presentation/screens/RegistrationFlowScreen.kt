@@ -66,8 +66,10 @@ fun RegistrationFlowScreen(
     LaunchedEffect(registrationState) {
         registrationState?.let { result ->
             if (result.isSuccess) {
-                // Navigate back to tournament list or show success
-                navController.navigateUp()
+                // Navigate to Victory Pass screen to show room credentials
+                navController.navigate("victory_pass/$tournamentId") {
+                    popUpTo("tournament_details/$tournamentId") { inclusive = false }
+                }
             }
         }
     }
@@ -300,239 +302,243 @@ fun RegistrationStep1(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
             .navigationBarsPadding()
-            .padding(bottom = 24.dp)
     ) {
+        // Scrollable content
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+        ) {
+            Text(
+                text = "Tournament Registration",
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
 
-        Text(
-            text = "Tournament Registration",
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
-            fontWeight = FontWeight.Bold
-        )
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Review tournament details and check requirements",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
 
-        Text(
-            text = "Review tournament details and check requirements",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
-        )
+            Spacer(modifier = Modifier.height(24.dp))
 
-        Spacer(modifier = Modifier.height(24.dp))
+            // Tournament Information Card
+            tournament?.let { t ->
+                // Log: Tournament Details (matches the UI below)
+                Log.d("TAG_TOURNAMENT_DETAILS", "=== TOURNAMENT DETAILS ===")
+                Log.d("TAG_TOURNAMENT_DETAILS", "Name: ${t.name}")
+                Log.d("TAG_TOURNAMENT_DETAILS", "ID: ${t.id}")
+                Log.d("TAG_TOURNAMENT_DETAILS", "Status: ${t.computedStatus.name}")
+                Log.d("TAG_TOURNAMENT_DETAILS", "Entry Fee: ${t.entryFee} | Prize Pool: ${t.prizePool}")
+                Log.d("TAG_TOURNAMENT_DETAILS", "Mode: ${t.matchType.ifEmpty { "SQUAD" }} | Map: ${t.map.ifEmpty { "Erangel" }}")
+                Log.d("TAG_TOURNAMENT_DETAILS", "Participants: ${t.registeredTeams}/${t.maxTeams}")
+                Log.d("TAG_TOURNAMENT_DETAILS", "StartTime(ms): ${t.startTime} | Date: ${try { java.util.Date(t.startTime).toString() } catch (e: Exception) { "Invalid" }}")
+                Log.d("TAG_TOURNAMENT_DETAILS", "==================================")
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Tournament Details",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.Cyan,
+                                fontWeight = FontWeight.Bold
+                            )
 
-        // Tournament Information Card
-        tournament?.let { t ->
-            // Log: Tournament Details (matches the UI below)
-            Log.d("TAG_TOURNAMENT_DETAILS", "=== TOURNAMENT DETAILS ===")
-            Log.d("TAG_TOURNAMENT_DETAILS", "Name: ${t.name}")
-            Log.d("TAG_TOURNAMENT_DETAILS", "ID: ${t.id}")
-            Log.d("TAG_TOURNAMENT_DETAILS", "Status: ${t.computedStatus.name}")
-            Log.d("TAG_TOURNAMENT_DETAILS", "Entry Fee: ${t.entryFee} | Prize Pool: ${t.prizePool}")
-            Log.d("TAG_TOURNAMENT_DETAILS", "Mode: ${t.matchType.ifEmpty { "SQUAD" }} | Map: ${t.map.ifEmpty { "Erangel" }}")
-            Log.d("TAG_TOURNAMENT_DETAILS", "Participants: ${t.registeredTeams}/${t.maxTeams}")
-            Log.d("TAG_TOURNAMENT_DETAILS", "StartTime(ms): ${t.startTime} | Date: ${try { java.util.Date(t.startTime).toString() } catch (e: Exception) { "Invalid" }}")
-            Log.d("TAG_TOURNAMENT_DETAILS", "==================================")
+                            // Status Badge
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = when (t.computedStatus.name) {
+                                        "UPCOMING" -> Color.Green.copy(alpha = 0.2f)
+                                        "ONGOING" -> Color.Yellow.copy(alpha = 0.2f)
+                                        else -> Color.Gray.copy(alpha = 0.2f)
+                                    }
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = t.computedStatus.name,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = when (t.computedStatus.name) {
+                                        "UPCOMING" -> Color.Green
+                                        "ONGOING" -> Color.Yellow
+                                        else -> Color.Gray
+                                    },
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Tournament Info Grid
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            InfoItem("Tournament", t.name)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    InfoItem("Entry Fee", "₹${t.entryFee.toInt()}", Color.Cyan)
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    InfoItem("Prize Pool", "₹${t.prizePool.toInt()}", Color.Green)
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    InfoItem("Mode", t.matchType.ifEmpty { "SQUAD" })
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    InfoItem("Map", t.map.ifEmpty { "Erangel" })
+                                }
+                            }
+
+                            InfoItem(
+                                "Participants",
+                                "${t.registeredTeams}/${t.maxTeams} teams",
+                                if (slotsAvailable) Color.Green else Color.Red
+                            )
+
+                            // Start Time
+                            val startTimeText = remember(t.startTime) {
+                                try {
+                                    val date = java.util.Date(t.startTime)
+                                    val formatter = java.text.SimpleDateFormat("MMM dd, yyyy 'at' hh:mm a", java.util.Locale.getDefault())
+                                    formatter.format(date)
+                                } catch (e: Exception) {
+                                    "TBD"
+                                }
+                            }
+                            InfoItem("Start Time", startTimeText)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Prerequisites Check Card
+            Log.d("TAG_REG_REQUIREMENTS", "=== REGISTRATION REQUIREMENTS ===")
+            Log.d("TAG_REG_REQUIREMENTS", "Wallet Balance: $walletBalance")
+            Log.d("TAG_REG_REQUIREMENTS", "Entry Fee: $entryFee")
+            Log.d("TAG_REG_REQUIREMENTS", "KYC Status: ${if (isKycVerified) "COMPLETED" else "PENDING"}")
+            Log.d("TAG_REG_REQUIREMENTS", "Registration Window: ${if (registrationOpen) "OPEN" else "CLOSED"}")
+            Log.d("TAG_REG_REQUIREMENTS", "Slots Available: ${if (slotsAvailable) "YES" else "NO"}")
+            Log.d("TAG_REG_REQUIREMENTS", "==================================")
             
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("RegistrationRequirementsCard"),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Tournament Details",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.Cyan,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        // Status Badge
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = when (t.computedStatus.name) {
-                                    "UPCOMING" -> Color.Green.copy(alpha = 0.2f)
-                                    "ONGOING" -> Color.Yellow.copy(alpha = 0.2f)
-                                    else -> Color.Gray.copy(alpha = 0.2f)
-                                }
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = t.computedStatus.name,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = when (t.computedStatus.name) {
-                                    "UPCOMING" -> Color.Green
-                                    "ONGOING" -> Color.Yellow
-                                    else -> Color.Gray
-                                },
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                    Text(
+                        text = "Registration Requirements",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.Cyan,
+                        fontWeight = FontWeight.Bold
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Tournament Info Grid
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        InfoItem("Tournament", t.name)
+                    // KYC Status
+                    PrerequisiteItem(
+                        title = "KYC Verification",
+                        description = when {
+                            isLoadingUserData -> "Checking status..."
+                            isKycVerified -> "Your identity is verified"
+                            userKycStatus == "pending" -> "KYC verification pending"
+                            else -> "KYC verification required"
+                        },
+                        isValid = isKycVerified,
+                        isLoading = isLoadingUserData
+                    )
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                InfoItem("Entry Fee", "₹${t.entryFee.toInt()}", Color.Cyan)
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                InfoItem("Prize Pool", "₹${t.prizePool.toInt()}", Color.Green)
-                            }
-                        }
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                InfoItem("Mode", t.matchType.ifEmpty { "SQUAD" })
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                InfoItem("Map", t.map.ifEmpty { "Erangel" })
-                            }
-                        }
+                    // Wallet Balance
+                    PrerequisiteItem(
+                        title = "Wallet Balance",
+                        description = if (hasSufficientBalance) {
+                            "₹${walletBalance.toInt()} available (₹${entryFee.toInt()} required)"
+                        } else {
+                            "Insufficient balance: ₹${walletBalance.toInt()} (₹${entryFee.toInt()} required)"
+                        },
+                        isValid = hasSufficientBalance,
+                        isLoading = false
+                    )
 
-                        InfoItem(
-                            "Participants",
-                            "${t.registeredTeams}/${t.maxTeams} teams",
-                            if (slotsAvailable) Color.Green else Color.Red
-                        )
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                        // Start Time
-                        val startTimeText = remember(t.startTime) {
-                            try {
-                                val date = java.util.Date(t.startTime)
-                                val formatter = java.text.SimpleDateFormat("MMM dd, yyyy 'at' hh:mm a", java.util.Locale.getDefault())
-                                formatter.format(date)
-                            } catch (e: Exception) {
-                                "TBD"
+                    // Registration Window
+                    PrerequisiteItem(
+                        title = "Registration Window",
+                        description = tournament?.let {
+                            val now = System.currentTimeMillis()
+                            val cutoff = (it.registrationEndTime ?: it.startTime)
+                            val opensAt = it.registrationStartTime
+                            val dateFormat = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault())
+
+                            when {
+                                opensAt != null && now < opensAt -> "Opens ${dateFormat.format(Date(opensAt))}"
+                                now < cutoff -> "Open until ${dateFormat.format(Date(cutoff))}"
+                                else -> "Registration closed"
                             }
-                        }
-                        InfoItem("Start Time", startTimeText)
-                    }
+                        } ?: "Loading...",
+                        isValid = registrationOpen,
+                        isLoading = tournament == null
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Available Slots
+                    PrerequisiteItem(
+                        title = "Available Slots",
+                        description = if (slotsAvailable) {
+                            "${tournament?.maxTeams?.minus(tournament.registeredTeams) ?: 0} slots remaining"
+                        } else {
+                            "Tournament is full"
+                        },
+                        isValid = slotsAvailable,
+                        isLoading = false
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        // Fixed button area
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Prerequisites Check Card
-        Log.d("TAG_REG_REQUIREMENTS", "=== REGISTRATION REQUIREMENTS ===")
-        Log.d("TAG_REG_REQUIREMENTS", "Wallet Balance: $walletBalance")
-        Log.d("TAG_REG_REQUIREMENTS", "Entry Fee: $entryFee")
-        Log.d("TAG_REG_REQUIREMENTS", "KYC Status: ${if (isKycVerified) "COMPLETED" else "PENDING"}")
-        Log.d("TAG_REG_REQUIREMENTS", "Registration Window: ${if (registrationOpen) "OPEN" else "CLOSED"}")
-        Log.d("TAG_REG_REQUIREMENTS", "Slots Available: ${if (slotsAvailable) "YES" else "NO"}")
-        Log.d("TAG_REG_REQUIREMENTS", "==================================")
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("RegistrationRequirementsCard"),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                Text(
-                    text = "Registration Requirements",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.Cyan,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // KYC Status
-                PrerequisiteItem(
-                    title = "KYC Verification",
-                    description = when {
-                        isLoadingUserData -> "Checking status..."
-                        isKycVerified -> "Your identity is verified"
-                        userKycStatus == "pending" -> "KYC verification pending"
-                        else -> "KYC verification required"
-                    },
-                    isValid = isKycVerified,
-                    isLoading = isLoadingUserData
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Wallet Balance
-                PrerequisiteItem(
-                    title = "Wallet Balance",
-                    description = if (hasSufficientBalance) {
-                        "₹${walletBalance.toInt()} available (₹${entryFee.toInt()} required)"
-                    } else {
-                        "Insufficient balance: ₹${walletBalance.toInt()} (₹${entryFee.toInt()} required)"
-                    },
-                    isValid = hasSufficientBalance,
-                    isLoading = false
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Registration Window
-                PrerequisiteItem(
-                    title = "Registration Window",
-                    description = tournament?.let {
-                        val now = System.currentTimeMillis()
-                        val cutoff = (it.registrationEndTime ?: it.startTime)
-                        val opensAt = it.registrationStartTime
-                        val dateFormat = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault())
-
-                        when {
-                            opensAt != null && now < opensAt -> "Opens ${dateFormat.format(Date(opensAt))}"
-                            now < cutoff -> "Open until ${dateFormat.format(Date(cutoff))}"
-                            else -> "Registration closed"
-                        }
-                    } ?: "Loading...",
-                    isValid = registrationOpen,
-                    isLoading = tournament == null
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Available Slots
-                PrerequisiteItem(
-                    title = "Available Slots",
-                    description = if (slotsAvailable) {
-                        "${tournament?.maxTeams?.minus(tournament.registeredTeams) ?: 0} slots remaining"
-                    } else {
-                        "Tournament is full"
-                    },
-                    isValid = slotsAvailable,
-                    isLoading = false
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Continue Button
         Button(
             onClick = onNext,
             modifier = Modifier
@@ -575,10 +581,9 @@ fun RegistrationStep1(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
-
-
 
 @Composable
 private fun PrerequisiteItem(
@@ -665,33 +670,38 @@ fun RegistrationStep2(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
             .navigationBarsPadding()
-            .padding(bottom = 24.dp)
     ) {
-        Text(
-            text = "Select Payment Method",
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
-            fontWeight = FontWeight.Bold
-        )
+        // Scrollable content
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+        ) {
+            Text(
+                text = "Select Payment Method",
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Payment Method Options - Only Wallet Available
+            PaymentMethodOption(
+                methodName = "Wallet Balance",
+                description = "Pay using your NetWin wallet",
+                isSelected = selectedPaymentMethod == "wallet",
+                onClick = { 
+                    selectedPaymentMethod = "wallet"
+                    onDataUpdate { it.copy(paymentMethod = "wallet") }
+                }
+            )
+        }
         
-        Spacer(modifier = Modifier.height(24.dp))
+        // Fixed button area
+        Spacer(modifier = Modifier.height(16.dp))
         
-        // Payment Method Options - Only Wallet Available
-        PaymentMethodOption(
-            methodName = "Wallet Balance",
-            description = "Pay using your NetWin wallet",
-            isSelected = selectedPaymentMethod == "wallet",
-            onClick = { 
-                selectedPaymentMethod = "wallet"
-                onDataUpdate { it.copy(paymentMethod = "wallet") }
-            }
-        )
-        
-        Spacer(modifier = Modifier.weight(1f))
-        
-        // Continue Button
         Button(
             onClick = onNext,
             modifier = Modifier
@@ -721,6 +731,7 @@ fun RegistrationStep2(
                 )
             }
         }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -787,191 +798,156 @@ fun RegistrationStep3(
     onNext: () -> Unit,
     isLoading: Boolean
 ) {
-    var inGameId by remember(stepData.inGameId) { mutableStateOf(stepData.inGameId) }
-    var teamName by remember(stepData.teamName) { mutableStateOf(stepData.teamName) }
-    var termsAccepted by remember(stepData.termsAccepted) { mutableStateOf(stepData.termsAccepted) }
-    val isSolo = tournament?.matchType.equals("SOLO", ignoreCase = true)
-    val contentScroll = rememberScrollState()
+    val scrollState = rememberScrollState()
+    val termsAccepted by remember(stepData.termsAccepted) { mutableStateOf(stepData.termsAccepted) }
+    val maxPlayers = tournament?.teamSize ?: 1
+    val canContinue = stepData.teamName.isNotBlank() && stepData.playerIds.all { it.isNotBlank() } && termsAccepted
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(contentScroll)
             .navigationBarsPadding()
-            .padding(bottom = 24.dp)
     ) {
-        Text(
-            text = "Game Details",
-            style = MaterialTheme.typography.titleLarge,
-            color = Color(0xFF00E5FF),
-            fontWeight = FontWeight.Bold
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // In-Game ID Field
-        OutlinedTextField(
-            value = inGameId,
-            onValueChange = { 
-                inGameId = it
-                onDataUpdate { stepData -> stepData.copy(inGameId = it) }
-            },
-            label = { Text("In-Game ID", color = Color.Gray) },
-            placeholder = { Text("Enter your PUBG/BGMI ID", color = Color.Gray) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                focusedBorderColor = Color(0xFF00E5FF),
-                unfocusedBorderColor = Color.Gray
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Team Name Field - shown only for non-SOLO tournaments
-        if (!isSolo) {
-            OutlinedTextField(
-                value = teamName,
-                onValueChange = {
-                    teamName = it
-                    onDataUpdate { stepData -> stepData.copy(teamName = it) }
-                },
-                label = { Text("Team Name", color = Color.Gray) },
-                placeholder = { Text("Enter your team name", color = Color.Gray) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF00E5FF),
-                    unfocusedBorderColor = Color.Gray
-                )
+        // Scrollable content
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+        ) {
+            Text(
+                text = "Game Details & Rules",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
-        }
-        
-        Spacer(modifier = Modifier.height(24.dp))
 
-        // Rules Section (from tournament.rules) - scrollable within card
-        tournament?.rules?.takeIf { it.isNotBlank() }?.let { rulesText ->
-            Card(
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Team Name
+            OutlinedTextField(
+                value = stepData.teamName,
+                onValueChange = { onDataUpdate { data -> data.copy(teamName = it) } },
+                label = { Text("Team Name") },
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF102027))
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Player IDs
+            stepData.playerIds.forEachIndexed { index, playerId ->
+                OutlinedTextField(
+                    value = playerId,
+                    onValueChange = {
+                        val newPlayerIds = stepData.playerIds.toMutableList()
+                        newPlayerIds[index] = it
+                        onDataUpdate { data -> data.copy(playerIds = newPlayerIds) }
+                    },
+                    label = { Text("Player ${index + 1} In-Game ID") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Add/Remove Player Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Rules",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color(0xFF00E5FF),
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 120.dp, max = 240.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
+                Button(
+                    onClick = {
+                        if (stepData.playerIds.size < maxPlayers) {
+                            onDataUpdate { it.copy(playerIds = it.playerIds + "") }
+                        }
+                    },
+                    enabled = stepData.playerIds.size < maxPlayers
+                ) {
+                    Text("Add Player")
+                }
+                Button(
+                    onClick = {
+                        if (stepData.playerIds.size > 1) {
+                            onDataUpdate { it.copy(playerIds = it.playerIds.dropLast(1)) }
+                        }
+                    },
+                    enabled = stepData.playerIds.size > 1
+                ) {
+                    Text("Remove Player")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Tournament Rules
+            if (tournament?.rules?.isNotEmpty() == true) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = rulesText,
+                            text = "Tournament Rules",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Cyan
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = tournament.rules.joinToString(separator = "\n") { "• $it" },
                             color = Color.LightGray,
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-        
-        // Terms and Conditions
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF102027))
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Terms and Conditions
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onDataUpdate { data -> data.copy(termsAccepted = !data.termsAccepted) } }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Terms & Conditions",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFF00E5FF),
-                    fontWeight = FontWeight.Bold
+                Checkbox(
+                    checked = termsAccepted,
+                    onCheckedChange = { onDataUpdate { data -> data.copy(termsAccepted = it) } }
                 )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = "• Entry fee is non-refundable\n• Follow fair play rules\n• No cheating or hacking allowed\n• Tournament organizer's decision is final",
-                    color = Color.LightGray,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable {
-                        termsAccepted = !termsAccepted
-                        onDataUpdate { it.copy(termsAccepted = !termsAccepted) }
-                    }
-                ) {
-                    Checkbox(
-                        checked = termsAccepted,
-                        onCheckedChange = { 
-                            termsAccepted = it
-                            onDataUpdate { stepData -> stepData.copy(termsAccepted = it) }
-                        },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = Color(0xFF00E5FF),
-                            uncheckedColor = Color.Gray
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "I accept the terms and conditions",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("I agree to the tournament rules and terms of service.", color = Color.White)
             }
         }
-        
-        Spacer(modifier = Modifier.weight(1f))
-        
-        // Continue Button
+
+        // Fixed button area
+        Spacer(modifier = Modifier.height(16.dp))
+
         Button(
             onClick = onNext,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
-            enabled = inGameId.isNotBlank() && (isSolo || teamName.isNotBlank()) && termsAccepted && !isLoading,
+            enabled = canContinue && !isLoading,
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF00E5FF),
                 contentColor = Color.Black,
                 disabledContainerColor = Color(0xFF3A3A3A),
                 disabledContentColor = Color(0xFFBDBDBD)
-            ),
-            shape = RoundedCornerShape(16.dp),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 6.dp)
+            )
         ) {
             if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.Black
-                )
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.Black)
             } else {
-                Text(
-                    text = "Review & Submit",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("Continue to Confirmation", fontWeight = FontWeight.Bold)
             }
         }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
-// Step 4: Confirmation & Summary
+// Step 4: Confirmation
 @Composable
 fun RegistrationStep4(
     tournament: Tournament?,
@@ -980,119 +956,51 @@ fun RegistrationStep4(
     isLoading: Boolean
 ) {
     val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
             .navigationBarsPadding()
-            .padding(bottom = 24.dp)
     ) {
-        Text(
-            text = "Registration Summary",
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
-            fontWeight = FontWeight.Bold
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // Tournament Summary
-        tournament?.let { t ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "Tournament Details",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.Cyan,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    InfoItem("Tournament", t.name)
-                    InfoItem("Entry Fee", "₹${t.entryFee}")
-                    InfoItem("Prize Pool", "₹${t.prizePool}")
-                }
-            }
-        }
-        
-        // Prize Distribution (Top 3)
-        tournament?.rewardsDistribution?.takeIf { it.isNotEmpty() }?.let { rewards ->
-            val sorted = rewards.sortedBy { it.position }
-            Spacer(modifier = Modifier.height(16.dp))
+        // Scrollable content
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+        ) {
+            Text(
+                text = "Confirm Registration",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Summary Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Prize Distribution",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color(0xFF00E5FF),
-                        fontWeight = FontWeight.Bold
-                    )
+                    SummaryRow("Tournament", tournament?.name ?: "N/A")
+                    SummaryRow("Team Name", stepData.teamName)
+                    SummaryRow("Entry Fee", "₹${tournament?.entryFee?.toInt() ?: 0}")
+                    SummaryRow("Payment Method", stepData.paymentMethod.replaceFirstChar { it.uppercase() })
+                    
                     Spacer(modifier = Modifier.height(12.dp))
-                    sorted.take(3).forEach { item ->
-                        val pool = (tournament?.prizePool ?: 0).toDouble()
-                        val amount = (pool * (item.percentage.toDouble() / 100.0)).toInt()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = when (item.position) {
-                                    1 -> "1st Place"
-                                    2 -> "2nd Place"
-                                    3 -> "3rd Place"
-                                    else -> "#${item.position}"
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "₹$amount (${item.percentage}%)",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF00E5FF),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                    
+                    Text("Players", style = MaterialTheme.typography.titleSmall, color = Color.Cyan)
+                    stepData.playerIds.forEachIndexed { index, id ->
+                        SummaryRow("Player ${index + 1}", id)
                     }
                 }
             }
         }
 
+        // Fixed button area
         Spacer(modifier = Modifier.height(16.dp))
-        
-        // Registration Details
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "Your Details",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.Cyan,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                InfoItem("In-Game ID", stepData.inGameId)
-                InfoItem("Team Name", stepData.teamName)
-                InfoItem("Payment Method", stepData.paymentMethod.replaceFirstChar { it.uppercase() })
-            }
-        }
-        
-        Spacer(modifier = Modifier.weight(1f))
-        
-        // Final Submit Button
+
         Button(
             onClick = onComplete,
             modifier = Modifier
@@ -1104,34 +1012,27 @@ fun RegistrationStep4(
                 contentColor = Color.Black,
                 disabledContainerColor = Color(0xFF3A3A3A),
                 disabledContentColor = Color(0xFFBDBDBD)
-            ),
-            shape = RoundedCornerShape(16.dp),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 6.dp)
+            )
         ) {
             if (isLoading) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Processing...",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black)
             } else {
-                Text(
-                    text = "Complete Registration",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("Submit Registration", fontWeight = FontWeight.Bold)
             }
         }
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun SummaryRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+        Text(text = value, color = Color.White, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
     }
 }

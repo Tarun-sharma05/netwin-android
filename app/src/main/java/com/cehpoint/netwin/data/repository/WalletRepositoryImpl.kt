@@ -40,7 +40,7 @@ class WalletRepositoryImpl @Inject constructor(
 
     private val usersCollection = firebaseManager.firestore.collection("users")
     private val walletsCollection = firebaseManager.firestore.collection("wallets")
-    private val transactionsCollection = firebaseManager.firestore.collection("transactions")
+    private val transactionsCollection = firebaseManager.firestore.collection("wallet_transactions")
     private val pendingDepositsCollection = firebaseManager.firestore.collection("pending_deposits")
     private val pendingWithdrawalsCollection = firebaseManager.firestore.collection("pending_withdrawals")
 
@@ -108,32 +108,36 @@ class WalletRepositoryImpl @Inject constructor(
     }
 
     override fun getTransactions(userId: String): Flow<List<Transaction>> = callbackFlow {
-        val listener = transactionsCollection
-            .whereEqualTo("userId", userId)
+        Log.d(TAG, "Starting transaction listeners for user $userId")
+        
+        // Listen to users/{userId}/transactions subcollection first (where your existing transaction is)
+        val userListener = usersCollection.document(userId)
+            .collection("transactions")
             .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e(TAG, "Error getting transactions for user $userId", error)
+                    Log.e(TAG, "Error getting user transactions for user $userId", error)
                     close(error)
                     return@addSnapshotListener
                 }
                 
-                val transactions = snapshot?.documents?.mapNotNull { doc ->
+                val userTransactions = snapshot?.documents?.mapNotNull { doc ->
                     try {
+                        Log.d(TAG, "Processing user transaction ${doc.id} for user $userId")
                         doc.toObject(Transaction::class.java)?.copy(id = doc.id)
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to deserialize transaction ${doc.id}: ${e.message}")
-                        null // Skip corrupted transactions gracefully
+                        Log.w(TAG, "Failed to deserialize user transaction ${doc.id}: ${e.message}")
+                        null
                     }
                 } ?: emptyList()
                 
-                Log.d(TAG, "Transactions updated for user $userId: ${transactions.size} items")
-                trySend(transactions)
+                Log.d(TAG, "User transactions loaded for user $userId: ${userTransactions.size} items")
+                trySend(userTransactions)
             }
         
         awaitClose { 
-            listener.remove()
-            Log.d(TAG, "Transactions listener removed for user $userId")
+            userListener.remove()
+            Log.d(TAG, "User transaction listener removed for user $userId")
         }
     }
 
@@ -537,7 +541,7 @@ class WalletRepositoryImpl @Inject constructor(
                     ?: throw Exception("Wallet not found")
 
                 // Check if wallet currency matches request currency
-                if (wallet.currency.uppercase() != request.currency.uppercase()) {
+                if ((wallet.currency ?: "INR").uppercase() != request.currency.uppercase()) {
                     throw Exception("Currency mismatch. Wallet currency: ${wallet.currency}, Request currency: ${request.currency}")
                 }
 
