@@ -46,6 +46,7 @@ import com.cehpoint.netwin.domain.model.TournamentStatus
 import com.cehpoint.netwin.presentation.components.TournamentStatusBadge
 import com.cehpoint.netwin.presentation.viewmodels.TournamentViewModel
 import com.cehpoint.netwin.utils.formatDateTime
+import com.cehpoint.netwin.presentation.theme.NetwinTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -294,41 +295,62 @@ private fun RegisteredTournamentCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Action Button
-            Button(
-                onClick = onClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .then(if (isGlowing) Modifier.shimmerEffect() else Modifier),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = when (tournament.computedStatus) {
-                        TournamentStatus.ONGOING, TournamentStatus.ROOM_OPEN ->
-                            MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    contentColor = when (tournament.computedStatus) {
-                        TournamentStatus.ONGOING, TournamentStatus.ROOM_OPEN ->
-                            MaterialTheme.colorScheme.onPrimary
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+            // Action Button with Gradient for Live Tournaments
+            if (tournament.computedStatus == TournamentStatus.ONGOING || tournament.computedStatus == TournamentStatus.ROOM_OPEN) {
+                // Use gradient button for ongoing tournaments
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(NetwinTokens.PrimaryGradientHorizontal)
+                        .clickable(onClick = onClick)
+                        .then(if (isGlowing) Modifier.shimmerEffect() else Modifier),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = androidx.compose.ui.graphics.Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = buttonText,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = androidx.compose.ui.graphics.Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(
-                    imageVector = when (tournament.computedStatus) {
-                        TournamentStatus.UPCOMING -> Icons.Default.Visibility
-                        TournamentStatus.ONGOING, TournamentStatus.ROOM_OPEN -> Icons.Default.PlayArrow
-                        else -> Icons.Default.Info
-                    },
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = buttonText,
-                    style = MaterialTheme.typography.labelLarge
-                )
+                }
+            } else {
+                // Regular button for other statuses
+                Button(
+                    onClick = onClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = when (tournament.computedStatus) {
+                            TournamentStatus.UPCOMING -> Icons.Default.Visibility
+                            else -> Icons.Default.Info
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = buttonText,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             }
         }
     }
@@ -535,7 +557,7 @@ private fun RoomAccessCard(
             Text(
                 text = "🎮 Room Credentials",
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
+                color = NetwinTokens.Accent,
                 fontWeight = FontWeight.Bold
             )
             
@@ -569,7 +591,7 @@ private fun RoomAccessCard(
                         Icon(
                             imageVector = if (roomIdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                             contentDescription = if (roomIdVisible) "Hide" else "Show",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = NetwinTokens.Accent,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -581,7 +603,7 @@ private fun RoomAccessCard(
                         Icon(
                             Icons.Default.ContentCopy,
                             contentDescription = "Copy Room ID",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = NetwinTokens.Accent,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -618,7 +640,7 @@ private fun RoomAccessCard(
                         Icon(
                             imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                             contentDescription = if (passwordVisible) "Hide" else "Show",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = NetwinTokens.Accent,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -630,7 +652,7 @@ private fun RoomAccessCard(
                         Icon(
                             Icons.Default.ContentCopy,
                             contentDescription = "Copy Password",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = NetwinTokens.Accent,
                             modifier = Modifier.size(16.dp)
                         )
                     }

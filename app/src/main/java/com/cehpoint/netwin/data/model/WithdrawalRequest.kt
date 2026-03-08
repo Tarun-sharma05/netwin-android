@@ -1,5 +1,7 @@
 package com.cehpoint.netwin.data.model
 
+import com.cehpoint.netwin.data.model.PaymentMethod
+
 data class WithdrawalRequest(
     val requestId: String = "",
     val userId: String = "",

@@ -1,5 +1,6 @@
 package com.cehpoint.netwin.data.repository
 
+import com.cehpoint.netwin.data.model.PaymentMethod
 import com.cehpoint.netwin.data.model.Transaction
 import com.cehpoint.netwin.data.model.TransactionStatus
 import com.cehpoint.netwin.data.remote.FirebaseManager
@@ -110,7 +111,7 @@ class TransactionRepositoryImpl @Inject constructor(
             type = com.cehpoint.netwin.data.model.TransactionType.DEPOSIT,
             status = TransactionStatus.PENDING,
             description = "Deposit via $paymentMethod",
-            paymentMethod = com.cehpoint.netwin.data.model.PaymentMethod.valueOf(paymentMethod)
+            paymentMethod = PaymentMethod.UPI.name
         )
 
         val docRef = transactionsCollection.add(transaction).await()
@@ -136,7 +137,7 @@ class TransactionRepositoryImpl @Inject constructor(
             type = com.cehpoint.netwin.data.model.TransactionType.WITHDRAWAL,
             status = TransactionStatus.PENDING,
             description = "Withdrawal via $paymentMethod",
-            paymentMethod = com.cehpoint.netwin.data.model.PaymentMethod.valueOf(paymentMethod)
+            paymentMethod = PaymentMethod.UPI.name
         )
 
         // Add transaction to Firestore

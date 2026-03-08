@@ -1,12 +1,12 @@
 package com.cehpoint.netwin.payments
 
 object PaymentGatewayFactory {
-    fun forCurrency(currency: String): PaymentGatewayManager? {
-        return when (currency.uppercase()) {
-            "INR" -> RazorpayManager()
-            "NGN" -> PaystackManager()
-            else -> null
-        }
+    /**
+     * Returns null for all currencies as payment gateway managers have been removed
+     * in favor of manual UPI deposit system
+     */
+    fun forCurrency(currency: String): Nothing? {
+        return null
     }
 }
 

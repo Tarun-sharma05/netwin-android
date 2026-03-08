@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.rememberAsyncImagePainter
@@ -30,6 +29,8 @@ import com.cehpoint.netwin.presentation.components.StatusChip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.navigation.NavController
+import com.cehpoint.netwin.presentation.theme.NetwinTokens
+import com.cehpoint.netwin.presentation.components.buttons.GradientPrimaryButton
 import android.os.Environment
 import androidx.core.content.FileProvider
 import java.io.File
@@ -230,13 +231,13 @@ fun KycScreen(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color.Cyan,
+                    focusedBorderColor = NetwinTokens.Accent,
                     unfocusedBorderColor = Color.Gray,
-                    cursorColor = Color.Cyan
+                    cursorColor = NetwinTokens.Accent
                 )
             )
             if (documentNumberError != null) {
-                Text(documentNumberError ?: "", color = Color.Red, fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                Text(documentNumberError ?: "", color = NetwinTokens.ErrorRed, fontSize = MaterialTheme.typography.bodySmall.fontSize)
             }
             Spacer(Modifier.height(16.dp))
 
@@ -258,9 +259,9 @@ fun KycScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color.Cyan,
+                        focusedBorderColor = NetwinTokens.Accent,
                         unfocusedBorderColor = Color.Gray,
-                        cursorColor = Color.Cyan
+                        cursorColor = NetwinTokens.Accent
                     )
                 )
                 ExposedDropdownMenu(
@@ -308,18 +309,20 @@ fun KycScreen(
             }
             if (imageError != null) {
                 Spacer(Modifier.height(4.dp))
-                Text(imageError ?: "", color = Color.Red, fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                Text(imageError ?: "", color = NetwinTokens.ErrorRed, fontSize = MaterialTheme.typography.bodySmall.fontSize)
             }
             Spacer(Modifier.height(24.dp))
 
-            // Submit Button
-            Button(
+            // Submit Button with Gradient
+            GradientPrimaryButton(
+                text = if (uiState.isLoading) "Submitting..." else "Submit KYC",
+                enabled = !uiState.isLoading,
                 onClick = {
                     if (userId.isEmpty()) {
                         Toast.makeText(context, "User not logged in", Toast.LENGTH_SHORT).show()
-                        return@Button
+                        return@GradientPrimaryButton
                     }
-                    if (!validate()) return@Button
+                    if (!validate()) return@GradientPrimaryButton
                     val kycDoc = KycDocument(
                         userId = userId,
                         documentType = documentType,
@@ -330,25 +333,24 @@ fun KycScreen(
                     )
                     kycViewModel.submitKyc(kycDoc)
                     showSuccess = true
-                },
-                enabled = !uiState.isLoading,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-                } else {
-                    Text("Submit KYC")
+                }
+            )
+            
+            // Loading indicator
+            if (uiState.isLoading) {
+                Spacer(Modifier.height(8.dp))
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = NetwinTokens.Accent, modifier = Modifier.size(20.dp))
                 }
             }
             if (showSuccess && uiState.error == null && !uiState.isLoading) {
                 Spacer(Modifier.height(8.dp))
-                Text("KYC submitted successfully!", color = Color.Green)
+                Text("KYC submitted successfully!", color = NetwinTokens.SuccessGreen)
             }
             // Error
             uiState.error?.let {
                 Spacer(Modifier.height(8.dp))
-                Text("Error: $it", color = Color.Red)
+                Text("Error: $it", color = NetwinTokens.ErrorRed)
             }
 
             // Clear form fields after successful submission

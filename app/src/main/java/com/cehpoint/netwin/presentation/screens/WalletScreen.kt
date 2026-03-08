@@ -4,9 +4,9 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -52,9 +52,11 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -103,11 +105,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.cehpoint.netwin.data.model.ManualUpiDeposit
 import com.cehpoint.netwin.data.model.PendingDeposit
-import com.cehpoint.netwin.payments.PaymentGatewayFactory
-import com.cehpoint.netwin.payments.PaymentGatewayManager
-import com.razorpay.Checkout
-import com.razorpay.PaymentResultListener
 import com.cehpoint.netwin.data.model.Transaction
 import com.cehpoint.netwin.data.model.TransactionStatus
 import com.cehpoint.netwin.data.model.TransactionType
@@ -181,17 +180,8 @@ fun WalletScreen(
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
     val sharedPreferences: SharedPreferences = context.getSharedPreferences("wallet_payment_state", Context.MODE_PRIVATE)
-    
-    // Payment Gateway Integration
-    val paymentGateway: PaymentGatewayManager? = remember { PaymentGatewayFactory.forCurrency(userCurrency) }
-    var razorpayPaymentResult by remember { mutableStateOf<String?>(null) }
-    var isProcessingPayment by remember { mutableStateOf(false) }
-    
-    // Initialize payment gateway when screen loads
-    LaunchedEffect(paymentGateway) {
-        paymentGateway?.initialize(context)
-    }
-    
+
+
     // Backup mechanism for payment proof dialog
     LaunchedEffect(upiResultMessage) {
         if (upiResultMessage != null) {
@@ -341,57 +331,6 @@ fun WalletScreen(
         }
     }
 
-    // Razorpay activity result launcher
-    val razorpayLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        Log.d("WalletScreen", "Razorpay Result - resultCode: ${result.resultCode}")
-        
-        // Razorpay results are handled by the PaymentResultListener in RazorpayManager
-        // This launcher is mainly for completing the activity flow
-        isProcessingPayment = false
-        
-        if (result.resultCode == Activity.RESULT_OK) {
-            // Payment was successful, the actual result is handled by RazorpayManager's onPaymentSuccess
-            Log.d("WalletScreen", "Razorpay activity completed successfully")
-        } else {
-            // Payment was cancelled or failed, actual error handled by RazorpayManager's onPaymentError
-            Log.d("WalletScreen", "Razorpay activity cancelled or failed")
-        }
-    }
-
-    // Razorpay payment handler
-    fun handleRazorpayPayment(activity: Activity, amount: Double, currency: String) {
-        isProcessingPayment = true
-        
-        paymentGateway?.startPayment(
-            activity = activity,
-            amountMinorUnits = (amount * 100).toLong(), // Convert to paise
-            currency = currency,
-            orderId = null, // Will be created by server
-            customerEmail = currentUser?.email,
-            customerPhone = null, // Could be fetched from user profile
-            metadata = mapOf(
-                "userId" to (currentUser?.uid ?: ""),
-                "transactionType" to "deposit"
-            )
-        ) { success, transactionId, errorMessage ->
-            isProcessingPayment = false
-            
-            if (success) {
-                Log.d("WalletScreen", "Razorpay payment successful - transactionId: $transactionId")
-                // For Razorpay, we don't need payment proof screen as it's handled by webhook
-                upiResultMessage = "Payment successful! Your wallet will be updated shortly."
-                // TODO: Create pending deposit record and update wallet
-                
-                // Refresh wallet data after successful payment
-                currentUser?.uid?.let { userId ->
-                    walletViewModel.loadWalletData(userId)
-                }
-            } else {
-                Log.e("WalletScreen", "Razorpay payment failed: $errorMessage")
-                upiResultMessage = "Payment failed: ${errorMessage ?: "Unknown error"}"
-            }
-        }
-    }
 
     // Load wallet data when screen is first displayed or when user changes
     LaunchedEffect(currentUser, isAuthenticated) {
@@ -575,10 +514,9 @@ fun WalletScreen(
                             bonusBalance = bonusBalance,
                             currency = userCurrency,
                             onWithdrawClick = { showWithdrawDialog = true },
-                            enabled = (kycStatus?.lowercase() == "verified")
+                            enabled = (kycStatus?.lowercase() == "verified"),
                         )
                     }
-
                     // Enhanced Quick Actions
                     item {
                         EnhancedQuickActions(
@@ -586,7 +524,8 @@ fun WalletScreen(
                                 if (userCountry.equals("Nigeria", ignoreCase = true) || userCountry.equals("NG", ignoreCase = true)) {
                                     showNGNDepositDialog = true
                                 } else {
-                                    showAmountSheet = true
+                                    // Navigate to new Manual UPI deposit Screen
+                                    navController.navigate(ScreenRoutes.ManualUpiDepositScreen)
                                 }
                             },
                             onWithdrawClick = { showWithdrawDialog = true },
@@ -815,42 +754,7 @@ fun WalletScreen(
                             coroutineScope.launch {
                                 showAmountSheet = false
                                 
-                                // Use Razorpay for Indian users, fallback to UPI for other cases
-                                if (userCurrency == "INR" && paymentGateway != null) {
-                                    try {
-                                        handleRazorpayPayment(context as Activity, amount.toDouble(), userCurrency)
-                                    } catch (e: Exception) {
-                                        Log.e("WalletScreen", "Failed to start Razorpay payment", e)
-                                        upiResultMessage = "Failed to start payment: ${e.message}"
-                                    }
-                                } else {
-                                    // Fallback to manual UPI for non-INR or if Razorpay fails
-                                    if (upiId.isNotBlank()) {
-                                        // Build UPI URI with dynamically fetched values
-                                        val upiUri = Uri.parse(
-                                            "upi://pay?pa=$upiId&pn=$merchantName&am=$amount&cu=INR&tn=Wallet+Deposit"
-                                        )
-                                        Log.d("WalletScreen", "UPI URI: $upiUri")
-                                        val intent = Intent(Intent.ACTION_VIEW, upiUri)
-                                        
-                                        // Try to resolve the UPI app package name before launching
-                                        val packageManager = context.packageManager
-                                        val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
-                                        val upiAppPackage = resolveInfo?.activityInfo?.packageName
-                                        
-                                        if (upiAppPackage != null) {
-                                            Log.d("WalletScreen", "Resolved UPI app package: $upiAppPackage")
-                                            sharedPreferences.edit().putString("last_upi_app_package", upiAppPackage).apply()
-                                        } else {
-                                            Log.w("WalletScreen", "Could not resolve UPI app package name")
-                                        }
-                                        
-                                        upiLauncher.launch(intent)
-                                    } else {
-                                        Log.e("WalletScreen", "Invalid payment - Amount: $amount, UPI ID: '$upiId'")
-                                        upiResultMessage = "Payment configuration error. Please contact support."
-                                    }
-                                }
+
                             }
                         } else {
                             Log.e("WalletScreen", "Invalid payment amount: $amount")
@@ -886,13 +790,51 @@ fun WalletScreen(
     if (showNGNDepositDialog) {
         NGNDepositDialog(
             onDismiss = { showNGNDepositDialog = false },
-            onDeposit = { amount, paymentMethod, bankDetails, screenshotUrl ->
-                // Handle NGN deposit
-                if (isAuthenticated && currentUser != null) {
-                    // Create pending deposit for NGN
-                    // This would typically integrate with Flutterwave/Paystack
-                    Log.d("WalletScreen", "Creating NGN deposit: $amount via $paymentMethod")
-                    // TODO: Implement actual NGN payment integration
+            onDeposit = { amount, paymentMethod, transactionReference, screenshotUriString ->
+                // Handle NGN deposit with screenshot upload
+                if (isAuthenticated && currentUser != null && screenshotUriString != null && transactionReference != null) {
+                    coroutineScope.launch {
+                        try {
+                            Log.d("WalletScreen", "Starting NGN deposit: amount=$amount, reference=$transactionReference")
+                            
+                            // 1. Upload screenshot to Firebase Storage
+                            val screenshotUri = Uri.parse(screenshotUriString)
+                            val uploadResult = walletViewModel.uploadDepositScreenshot(
+                                uri = screenshotUri,
+                                userId = currentUser!!.uid
+                            )
+                            
+                            if (uploadResult.isSuccess) {
+                                val screenshotUrl = uploadResult.getOrNull()!!
+                                Log.d("WalletScreen", "Screenshot uploaded successfully: $screenshotUrl")
+                                
+                                // 2. Create NGN deposit request in Firestore
+                                walletViewModel.createNgnDepositRequest(
+                                    userId = currentUser!!.uid,
+                                    amount = amount,
+                                    transactionReference = transactionReference,
+                                    screenshotUrl = screenshotUrl,
+                                    currency = "NGN"
+                                )
+                                
+                                // 3. Show success message
+                                Toast.makeText(
+                                    context,
+                                    "Deposit request submitted! Your balance will update after admin approval.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                
+                                Log.d("WalletScreen", "NGN deposit request created successfully")
+                            } else {
+                                val error = uploadResult.exceptionOrNull()?.message ?: "Failed to upload screenshot"
+                                Log.e("WalletScreen", "Screenshot upload failed: $error")
+                                Toast.makeText(context, "Failed to upload screenshot: $error", Toast.LENGTH_LONG).show()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("WalletScreen", "Error processing NGN deposit", e)
+                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
                 showNGNDepositDialog = false
             }
@@ -1185,8 +1127,8 @@ private fun QuickActionButton(
 }
 
 @Composable
-private fun PendingDepositItem(deposit: PendingDeposit, currency: String) {
-    Log.d("PendingDepositItem", "Rendering deposit: ${deposit.upiRefId}, amount: ${deposit.amount}, status: ${deposit.status}")
+private fun PendingDepositItem(deposit: ManualUpiDeposit, currency: String) {
+    Log.d("PendingDepositItem", "Rendering deposit: ${deposit.upiTransactionId}, amount: ${deposit.amount}, status: ${deposit.status}")
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1221,22 +1163,24 @@ private fun PendingDepositItem(deposit: PendingDeposit, currency: String) {
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Pending Deposit",
+                        text = "Pending deposit",
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "UPI Ref: ${deposit.upiRefId}",
+                        text = "UPI Txn ID: ${deposit.upiTransactionId}",
                         color = Color.Gray,
                         fontSize = 12.sp
                     )
-                    Text(
-                        text = "Your UPI ID: ${deposit.userUpiId}",
-                        color = Color.Gray,
-                        fontSize = 12.sp
-                    )
-                    if (!deposit.screenshotUrl.isNullOrBlank()) {
+                    if (deposit.userUpiId.isNotBlank()) {
+                        Text(
+                            text = "Your UPI ID: ${deposit.userUpiId}",
+                            color = Color.Gray,
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (!deposit.paymentScreenshot.isNullOrBlank()) {
                         Text(
                             text = "Screenshot uploaded",
                             color = Color(0xFF00BCD4),
@@ -1947,7 +1891,6 @@ private fun ImprovedWalletTopBar(totalBalance: Double, currency: String) {
             }
         }
 
-
     }
 }
 
@@ -1960,6 +1903,9 @@ private fun EnhancedBalanceCard(
     onWithdrawClick: () -> Unit,
     enabled: Boolean
 ) {
+    // Log raw values received
+    Log.d("EnhancedBalanceCard", "RAW VALUES - withdrawableBalance: $withdrawableBalance, bonusBalance: $bonusBalance, currency: $currency")
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1978,6 +1924,7 @@ private fun EnhancedBalanceCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // User Added Balance Tab
+                Log.d("Wallet Screen","EnhancedBalanceCardUser Added Balance: ${NGNTransactionUtils.formatAmountTidy(withdrawableBalance, currency)}")
                 EsportsBalanceTab(
                     label = "User Added Balance",
                     amount = NGNTransactionUtils.formatAmountTidy(withdrawableBalance, currency),
@@ -1985,8 +1932,9 @@ private fun EnhancedBalanceCard(
                     isSelected = true,
                     modifier = Modifier.weight(1f)
                 )
-                
+
                 // Bonus Winnings Tab
+                Log.d("Wallet Screen", "EnhancedBalanceCardBonus Balance: ${NGNTransactionUtils.formatAmountTidy(bonusBalance, currency)}")
                 EsportsBalanceTab(
                     label = "Bonus Winnings",
                     amount = NGNTransactionUtils.formatAmountTidy(bonusBalance, currency),
@@ -2164,10 +2112,26 @@ private fun EnhancedTransactionItem(transaction: Transaction, currency: String) 
                             .background(
                                 brush = Brush.radialGradient(
                                     colors = when (transaction.type) {
-                                        TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT -> listOf(SuccessGreen, SuccessGreen.copy(alpha = 0.7f))
-                                        TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL -> listOf(ErrorRed, ErrorRed.copy(alpha = 0.7f))
-                                        TransactionType.TOURNAMENT_ENTRY -> listOf(NetWinPurple, NetWinPink)
-                                        TransactionType.TOURNAMENT_WINNING -> listOf(WarningYellow, WarningYellow.copy(alpha = 0.7f))
+                                        // User Added Deposits (Green)
+                                        TransactionType.DEPOSIT, TransactionType.MANUAL_DEPOSIT, 
+                                        TransactionType.UPI_DEPOSIT, TransactionType.BANK_TRANSFER_DEPOSIT,
+                                        TransactionType.CARD_PAYMENT, TransactionType.MOBILE_MONEY -> 
+                                            listOf(SuccessGreen, SuccessGreen.copy(alpha = 0.7f))
+                                        
+                                        // Withdrawals (Red)
+                                        TransactionType.WITHDRAWAL, TransactionType.MANUAL_WITHDRAWAL,
+                                        TransactionType.UPI_WITHDRAWAL, TransactionType.BANK_TRANSFER_WITHDRAWAL -> 
+                                            listOf(ErrorRed, ErrorRed.copy(alpha = 0.7f))
+                                        
+                                        // Tournament Entry/Fees (Purple)
+                                        TransactionType.TOURNAMENT_ENTRY, TransactionType.ENTRY_FEE -> 
+                                            listOf(NetWinPurple, NetWinPink)
+                                        
+                                        // Winnings/Bonuses (Yellow/Gold)
+                                        TransactionType.TOURNAMENT_WINNING, TransactionType.BONUS_CREDIT, 
+                                        TransactionType.REFUND -> 
+                                            listOf(WarningYellow, WarningYellow.copy(alpha = 0.7f))
+                                        
                                         else -> listOf(Color.Gray, Color.Gray.copy(alpha = 0.7f))
                                     }
                                 ),
@@ -2177,10 +2141,23 @@ private fun EnhancedTransactionItem(transaction: Transaction, currency: String) 
                     ) {
                         Icon(
                             imageVector = when (transaction.type) {
-                                TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT -> Icons.Default.Add
-                                TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL -> Icons.Default.Remove
-                                TransactionType.TOURNAMENT_ENTRY -> Icons.Default.PlayArrow
+                                // Deposits
+                                TransactionType.DEPOSIT, TransactionType.MANUAL_DEPOSIT,
+                                TransactionType.UPI_DEPOSIT, TransactionType.BANK_TRANSFER_DEPOSIT,
+                                TransactionType.CARD_PAYMENT, TransactionType.MOBILE_MONEY -> Icons.Default.Add
+                                
+                                // Withdrawals
+                                TransactionType.WITHDRAWAL, TransactionType.MANUAL_WITHDRAWAL,
+                                TransactionType.UPI_WITHDRAWAL, TransactionType.BANK_TRANSFER_WITHDRAWAL -> Icons.Default.Remove
+                                
+                                // Tournament Entry
+                                TransactionType.TOURNAMENT_ENTRY, TransactionType.ENTRY_FEE -> Icons.Default.PlayArrow
+                                
+                                // Winnings/Bonuses
                                 TransactionType.TOURNAMENT_WINNING -> Icons.Default.EmojiEvents
+                                TransactionType.BONUS_CREDIT -> Icons.Default.Star
+                                TransactionType.REFUND -> Icons.Default.Refresh
+                                
                                 else -> Icons.Default.Info
                             },
                             contentDescription = null,
@@ -2210,11 +2187,38 @@ private fun EnhancedTransactionItem(transaction: Transaction, currency: String) 
                 Column(
                     horizontalAlignment = Alignment.End
                 ) {
+                    // Determine if transaction is credit (+) or debit (-)
+                    val isCredit = transaction.type in listOf(
+                        TransactionType.DEPOSIT, TransactionType.MANUAL_DEPOSIT,
+                        TransactionType.UPI_DEPOSIT, TransactionType.BANK_TRANSFER_DEPOSIT,
+                        TransactionType.CARD_PAYMENT, TransactionType.MOBILE_MONEY,
+                        TransactionType.TOURNAMENT_WINNING, TransactionType.BONUS_CREDIT,
+                        TransactionType.REFUND
+                    )
+                    
                     Text(
-                        text = "${if (transaction.type in listOf(TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT, TransactionType.TOURNAMENT_WINNING)) "+" else "-"}${NGNTransactionUtils.formatAmount(transaction.amount, currency)}",
-                        color = when (transaction.type) {
-                            TransactionType.DEPOSIT, TransactionType.UPI_DEPOSIT, TransactionType.TOURNAMENT_WINNING -> SuccessGreen
-                            TransactionType.WITHDRAWAL, TransactionType.UPI_WITHDRAWAL, TransactionType.TOURNAMENT_ENTRY -> ErrorRed
+                        text = "${if (isCredit) "+" else "-"}${NGNTransactionUtils.formatAmount(transaction.amount, currency)}",
+                        color = when {
+                            // Credits (Green for deposits)
+                            transaction.type in listOf(
+                                TransactionType.DEPOSIT, TransactionType.MANUAL_DEPOSIT,
+                                TransactionType.UPI_DEPOSIT, TransactionType.BANK_TRANSFER_DEPOSIT,
+                                TransactionType.CARD_PAYMENT, TransactionType.MOBILE_MONEY
+                            ) -> SuccessGreen
+                            
+                            // Winnings/Bonuses (Yellow/Gold)
+                            transaction.type in listOf(
+                                TransactionType.TOURNAMENT_WINNING, TransactionType.BONUS_CREDIT,
+                                TransactionType.REFUND
+                            ) -> WarningYellow
+                            
+                            // Debits (Red for withdrawals/entries)
+                            transaction.type in listOf(
+                                TransactionType.WITHDRAWAL, TransactionType.MANUAL_WITHDRAWAL,
+                                TransactionType.UPI_WITHDRAWAL, TransactionType.BANK_TRANSFER_WITHDRAWAL,
+                                TransactionType.TOURNAMENT_ENTRY, TransactionType.ENTRY_FEE
+                            ) -> ErrorRed
+                            
                             else -> Color.Gray
                         },
                         fontSize = 16.sp,
@@ -2326,6 +2330,8 @@ private fun EsportsBalanceTab(
     isSelected: Boolean,
     modifier: Modifier = Modifier
 ) {
+    Log.d("EsportsBalanceTab", "Rendering: label=$label, amount=$amount, isSelected=$isSelected")
+    
     Card(
         modifier = modifier
             .height(80.dp),

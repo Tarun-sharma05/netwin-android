@@ -1,3 +1,5 @@
+import io.grpc.InternalChannelz.id
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -11,12 +13,12 @@ plugins {
 
 android {
     namespace = "com.cehpoint.netwin"
-    compileSdk = 35
+    compileSdkVersion(rootProject.extra["compileSdkVersion"] as Int)
 
     defaultConfig {
         applicationId = "com.cehpoint.netwin"
-        minSdk = 28
-        targetSdkVersion(rootProject.extra["defaultTargetSdkVersion"] as Int)
+        minSdkVersion(rootProject.extra["defaultMinSdkVersion"] as Int)
+        targetSdkVersion(rootProject.extra["defaultTargetSdkVersion1"] as Int)
         versionCode = 1
         versionName = "1.0"
 
@@ -60,7 +62,6 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
-    buildToolsVersion = rootProject.extra["buildToolsVersion1"] as String
 }
 
 // Add Room schema directory configuration
@@ -78,8 +79,8 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-    implementation("androidx.compose.material:material:1.9.2")
-    implementation("androidx.compose.material3:material3:1.3.2")
+    implementation("androidx.compose.material:material:1.9.4")
+    implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose")
     implementation("androidx.navigation:navigation-compose")
@@ -91,7 +92,7 @@ dependencies {
     implementation("androidx.navigation:navigation-ui-ktx:2.9.5")
     
     // Kotlin Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
     
     // Hilt
     implementation("com.google.dagger:hilt-android:2.57.1")
@@ -104,6 +105,7 @@ dependencies {
     implementation("com.google.firebase:firebase-appcheck-playintegrity:19.0.1")
     implementation("com.google.firebase:firebase-appcheck-debug:19.0.1")
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.play.services.wallet)
     ksp("com.google.dagger:hilt-android-compiler:2.57.1")
     implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
     
@@ -127,9 +129,9 @@ dependencies {
     // Datastore preference
     implementation ("androidx.datastore:datastore-preferences:1.1.7")
 
-    // Payment Gateways (Phase 2)
-    implementation("com.razorpay:checkout:1.6.41")
-    implementation("co.paystack.android:paystack:3.1.3")
+    // QR Code Generation for UPI payments
+    implementation("com.google.zxing:core:3.5.1")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     
     // Testing
     testImplementation(libs.junit)

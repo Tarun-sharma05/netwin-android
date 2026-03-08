@@ -68,6 +68,7 @@ import androidx.navigation.NavController
 import com.cehpoint.netwin.domain.model.User
 import com.cehpoint.netwin.presentation.navigation.ScreenRoutes
 import com.cehpoint.netwin.presentation.viewmodels.MoreViewModel
+import com.cehpoint.netwin.presentation.theme.NetwinTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,7 +88,7 @@ fun MoreScreenUI(navController: NavController, viewModel: MoreViewModel = hiltVi
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Color.Cyan)
+                    CircularProgressIndicator(color = NetwinTokens.Accent)
                 }
             }
             error != null -> {
@@ -396,7 +397,7 @@ private fun StatItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color.Cyan,
+            tint = NetwinTokens.Accent,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
@@ -449,7 +450,7 @@ private fun MoreItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Color.Cyan,
+                tint = NetwinTokens.Accent,
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))

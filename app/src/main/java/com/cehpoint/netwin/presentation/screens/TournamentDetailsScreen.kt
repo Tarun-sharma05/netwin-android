@@ -1,6 +1,7 @@
 package com.cehpoint.netwin.presentation.screens
 
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -515,15 +516,26 @@ fun TournamentDetailsContent(
             title = { Text("KYC Required") },
             text = { Text("You must complete KYC verification to register for tournaments.") },
             confirmButton = {
-                Button(onClick = {
-                    viewModel.clearKycDialog()
-                    navController.navigate(com.cehpoint.netwin.presentation.navigation.ScreenRoutes.KycScreen)
-                }) {
+                Button(
+                    onClick = {
+                        viewModel.clearKycDialog()
+                        navController.navigate(com.cehpoint.netwin.presentation.navigation.ScreenRoutes.KycScreen)
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = NetwinTokens.Accent
+                    )
+                ) {
                     Text("Go to KYC")
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = { viewModel.clearKycDialog() }) {
+                OutlinedButton(
+                    onClick = { viewModel.clearKycDialog() },
+                    border = BorderStroke(1.dp, NetwinTokens.Accent),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = NetwinTokens.Accent
+                    )
+                ) {
                     Text("Cancel")
                 }
             }

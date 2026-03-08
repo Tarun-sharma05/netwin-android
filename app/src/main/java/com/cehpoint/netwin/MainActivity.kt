@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     //color = MaterialTheme.colorScheme.background,
                     containerColor = MaterialTheme.colorScheme.background
-                ) { innerPaddin ->
+                ) { innerPadding ->
                     NavGraph(firebaseManager = firebaseManager)
                 }
             }

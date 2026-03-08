@@ -66,6 +66,11 @@ rzp-key.csv
 *.pem
 *.p12
 
+# Firebase configuration files (contain API keys)
+app/google-services.json
+.firebaserc
+google-services.json
+
 # Test files
 sampletournamentdata.txt
 state_persistence_test.ps1

@@ -34,6 +34,8 @@ import com.cehpoint.netwin.domain.model.RegistrationStepData
 import com.cehpoint.netwin.domain.model.Tournament
 import com.cehpoint.netwin.presentation.events.RegistrationFlowEvent
 import com.cehpoint.netwin.presentation.viewmodels.TournamentViewModel
+import com.cehpoint.netwin.presentation.theme.NetwinTokens
+import com.cehpoint.netwin.presentation.components.buttons.GradientPrimaryButton
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -539,37 +541,12 @@ fun RegistrationStep1(
         // Fixed button area
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
+        GradientPrimaryButton(
+            text = if (allRequirementsMet) "Continue to Payment" else "Requirements Not Met",
             onClick = onNext,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
             enabled = allRequirementsMet,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF00E5FF),
-                contentColor = Color.Black,
-                disabledContainerColor = Color(0xFF3A3A3A),
-                disabledContentColor = Color(0xFFBDBDBD)
-            ),
-            shape = RoundedCornerShape(16.dp),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 6.dp)
-        ) {
-            if (allRequirementsMet) {
-                Text(
-                    text = "Continue to Payment",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold
-                )
-            } else {
-                Text(
-                    text = "Requirements Not Met",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+            modifier = Modifier.height(56.dp)
+        )
 
         if (!allRequirementsMet) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -702,35 +679,12 @@ fun RegistrationStep2(
         // Fixed button area
         Spacer(modifier = Modifier.height(16.dp))
         
-        Button(
+        GradientPrimaryButton(
+            text = if (isLoading) "Processing..." else "Continue to Details",
             onClick = onNext,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
             enabled = selectedPaymentMethod.isNotBlank() && !isLoading,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF00E5FF),
-                contentColor = Color.Black,
-                disabledContainerColor = Color(0xFF3A3A3A),
-                disabledContentColor = Color(0xFFBDBDBD)
-            ),
-            shape = RoundedCornerShape(16.dp),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 6.dp)
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.Black
-                )
-            } else {
-                Text(
-                    text = "Continue to Details",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+            modifier = Modifier.height(56.dp)
+        )
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -748,9 +702,9 @@ private fun PaymentMethodOption(
             .fillMaxWidth()
             .clickable(enabled = enabled, onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) Color.Cyan.copy(alpha = 0.2f) else Color(0xFF1E1E1E)
+            containerColor = if (isSelected) NetwinTokens.Accent.copy(alpha = 0.2f) else Color(0xFF1E1E1E)
         ),
-        border = BorderStroke(2.dp, if (isSelected) Color.Cyan else Color.Transparent)
+        border = BorderStroke(2.dp, if (isSelected) NetwinTokens.Accent else Color.Transparent)
     ) {
         Row(
             modifier = Modifier
@@ -763,7 +717,7 @@ private fun PaymentMethodOption(
                 onClick = null, // Handled by Card click
                 enabled = enabled,
                 colors = RadioButtonDefaults.colors(
-                    selectedColor = Color.Cyan,
+                    selectedColor = NetwinTokens.Accent,
                     unselectedColor = Color.Gray
                 )
             )
@@ -890,7 +844,7 @@ fun RegistrationStep3(
                             text = "Tournament Rules",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Cyan
+                            color = NetwinTokens.Accent
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -924,25 +878,12 @@ fun RegistrationStep3(
         // Fixed button area
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
+        GradientPrimaryButton(
+            text = if (isLoading) "Processing..." else "Continue to Confirmation",
             onClick = onNext,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
             enabled = canContinue && !isLoading,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF00E5FF),
-                contentColor = Color.Black,
-                disabledContainerColor = Color(0xFF3A3A3A),
-                disabledContentColor = Color(0xFFBDBDBD)
-            )
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.Black)
-            } else {
-                Text("Continue to Confirmation", fontWeight = FontWeight.Bold)
-            }
-        }
+            modifier = Modifier.height(56.dp)
+        )
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -990,7 +931,7 @@ fun RegistrationStep4(
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                    Text("Players", style = MaterialTheme.typography.titleSmall, color = Color.Cyan)
+                    Text("Players", style = MaterialTheme.typography.titleSmall, color = NetwinTokens.Accent)
                     stepData.playerIds.forEachIndexed { index, id ->
                         SummaryRow("Player ${index + 1}", id)
                     }
@@ -1001,25 +942,12 @@ fun RegistrationStep4(
         // Fixed button area
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
+        GradientPrimaryButton(
+            text = if (isLoading) "Submitting..." else "Submit Registration",
             onClick = onComplete,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
             enabled = !isLoading,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF00E5FF),
-                contentColor = Color.Black,
-                disabledContainerColor = Color(0xFF3A3A3A),
-                disabledContentColor = Color(0xFFBDBDBD)
-            )
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black)
-            } else {
-                Text("Submit Registration", fontWeight = FontWeight.Bold)
-            }
-        }
+            modifier = Modifier.height(56.dp)
+        )
         Spacer(modifier = Modifier.height(16.dp))
     }
 }

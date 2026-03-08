@@ -1,6 +1,7 @@
 package com.cehpoint.netwin.presentation.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Edit
@@ -67,6 +69,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
@@ -81,6 +85,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.cehpoint.netwin.presentation.navigation.ScreenRoutes
 import com.cehpoint.netwin.presentation.viewmodels.ProfileViewModel
+import com.cehpoint.netwin.presentation.theme.NetwinTokens
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -104,7 +109,7 @@ fun ProfileScreenUI(
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = Color.White
                         )
@@ -129,7 +134,7 @@ fun ProfileScreenUI(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Color.Cyan)
+                    CircularProgressIndicator(color = NetwinTokens.Accent)
                 }
             }
             error != null -> {
@@ -173,7 +178,7 @@ fun ProfileScreenUI(
                                     FloatingActionButton(
                                         onClick = { /* TODO: Show image picker/camera dialog */ },
                                         containerColor = Color(0xFF181A20),
-                                        contentColor = Color.Cyan,
+                                        contentColor = NetwinTokens.Accent,
                                         modifier = Modifier
                                             .size(32.dp)
                                             .semantics { contentDescription = "Change profile picture" }
@@ -207,7 +212,7 @@ fun ProfileScreenUI(
                                 if (user!!.username.isNotBlank()) {
                                     Text(
                                         text = "@${user!!.username}",
-                                        color = Color(0xFF00E5FF),
+                                        color = NetwinTokens.Accent,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Medium,
                                         modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
@@ -304,7 +309,7 @@ private fun GradientProfilePicture(
             .background(Color.Transparent)
             .semantics { this.contentDescription = contentDescription }
     ) {
-        androidx.compose.foundation.Canvas(modifier = Modifier.matchParentSize()) {
+        Canvas(modifier = Modifier.matchParentSize()) {
             drawArc(
                 brush = Brush.sweepGradient(
                     listOf(Color(0xFF00E5FF), Color(0xFFAA00FF), Color(0xFF00E5FF))
@@ -388,11 +393,12 @@ private fun AnimatedNameField(
                 style = MaterialTheme.typography.headlineMedium
             )
             IconButton(onClick = onEditClick) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit display name", tint = Color.Cyan)
+                Icon(Icons.Default.Edit, contentDescription = "Edit display name", tint = NetwinTokens.Accent)
             }
         }
     }
 }
+
 
 @Composable
 private fun KycStatusSection(kycStatus: String, onCompleteKyc: () -> Unit) {
@@ -422,7 +428,7 @@ private fun KycStatusSection(kycStatus: String, onCompleteKyc: () -> Unit) {
             Icon(
                 imageVector = Icons.Filled.VerifiedUser, // Use a shield or ID card icon
                 contentDescription = "KYC",
-                tint = Color(0xFF00E5FF),
+                tint = NetwinTokens.Accent,
                 modifier = Modifier.size(22.dp)
             )
             Spacer(Modifier.width(8.dp))
@@ -435,7 +441,7 @@ private fun KycStatusSection(kycStatus: String, onCompleteKyc: () -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Button(
                     onClick = onCompleteKyc,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                    colors = ButtonDefaults.buttonColors(containerColor = NetwinTokens.Accent),
                     contentPadding = ButtonDefaults.ContentPadding,
                     modifier = Modifier.height(32.dp)
                 ) {
@@ -473,7 +479,7 @@ private fun StatsGrid(matches: Int, wins: Int, earnings: Double, tournaments: In
         Triple("Tournaments", tournaments, Icons.Default.CalendarToday)
     )
     // Responsive: 2 columns on phone, 4 on tablet
-    val columns = if (LocalDensity.current.run { 600.dp.toPx() } < androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp) 4 else 2
+    val columns = if (LocalDensity.current.run { 600.dp.toPx() } < LocalConfiguration.current.screenWidthDp) 4 else 2
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
@@ -485,7 +491,7 @@ private fun StatsGrid(matches: Int, wins: Int, earnings: Double, tournaments: In
 }
 
 @Composable
-private fun StatCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+private fun StatCard(label: String, value: String, icon: ImageVector) {
     Card(
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, Color(0xFF23272F)),
@@ -502,7 +508,7 @@ private fun StatCard(label: String, value: String, icon: androidx.compose.ui.gra
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = null, tint = NetwinTokens.Accent, modifier = Modifier.size(24.dp))
             Spacer(Modifier.height(6.dp))
             Text(value, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
             Text(label, color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
@@ -538,10 +544,10 @@ private fun ActionButtons(
         OutlinedButton(
             onClick = onAchievements,
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            border = BorderStroke(1.dp, Color(0xFF00E5FF)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00E5FF))
+            border = BorderStroke(1.dp, NetwinTokens.Accent),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = NetwinTokens.Accent)
         ) {
-            Text("View Achievements", color = Color(0xFF00E5FF), fontWeight = FontWeight.Medium)
+            Text("View Achievements", color = NetwinTokens.Accent, fontWeight = FontWeight.Medium)
         }
         // Optionally add a Logout button here if desired
     }

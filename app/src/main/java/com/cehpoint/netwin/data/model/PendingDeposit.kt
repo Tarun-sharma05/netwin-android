@@ -1,5 +1,6 @@
 package com.cehpoint.netwin.data.model
 
+import com.cehpoint.netwin.data.model.PaymentMethod
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.ServerTimestamp

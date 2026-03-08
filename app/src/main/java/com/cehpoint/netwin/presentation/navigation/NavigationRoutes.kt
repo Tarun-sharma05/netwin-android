@@ -22,6 +22,10 @@ sealed class ScreenRoutes {
     @Serializable
     data object WalletScreen
 
+    // Manual UPI Deposit Screen
+    @Serializable
+    data object ManualUpiDepositScreen
+
     // Transactions
     @Serializable
     data object TransactionHistoryScreen

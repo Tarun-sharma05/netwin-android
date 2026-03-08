@@ -23,9 +23,9 @@
               <option name="connection">
                 <ConnectionSetting>
                   <option name="appId" value="com.cehpoint.netwin" />
-                  <option name="mobileSdkAppId" value="1:842283500427:android:82a8808598fb4bcde4258e" />
-                  <option name="projectId" value="netwin-tournament" />
-                  <option name="projectNumber" value="842283500427" />
+                  <option name="mobileSdkAppId" value="1:659784759900:android:5b83e1873d331dd8e64499" />
+                  <option name="projectId" value="netwin-personal" />
+                  <option name="projectNumber" value="659784759900" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

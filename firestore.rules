@@ -137,8 +137,9 @@ service cloud.firestore {
     // Pending deposits
     match /pending_deposits/{depositId} {
       allow read: if (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin() || (isModerator() && hasModeratorPermission('view_pending_deposits')))) || isAdminPanel();
-      allow create: if ((isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.amount > 0 && request.resource.data.status == 'PENDING')) || isAdminPanel() || (isModerator() && hasModeratorPermission('create_pending_deposits'));
-      allow update: if ((isAuthenticated() && (isAdmin() || (isModerator() && hasModeratorPermission('edit_pending_deposits')))) || isAdminPanel());
+      allow list: if isAuthenticated(); // Allow queries for duplicate checking
+      allow create: if (isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.amount > 0) || isAdminPanel() || (isModerator() && hasModeratorPermission('create_pending_deposits'));
+      allow update: if ((isAuthenticated() && (isAdmin() || (isModerator() && hasModeratorPermission('edit_pending_deposits')))) || isAdminPanel();
     }
     // Pending withdrawals
     match /pending_withdrawals/{withdrawalId} {
@@ -175,19 +176,23 @@ service cloud.firestore {
     }
   }
 }
-
 service firebase.storage {
   match /b/{bucket}/o {
     // KYC uploads
     match /kyc/{userId}/{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow read: if request.auth != null && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+
+    // Deposit screenshot uploads
+    match /deposit_screenshots/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+
     // Screenshot uploads
     match /screenshots/{userId}/{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow read: if request.auth != null && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    
     // Admin panel access
     match /{allPaths=**} {
       allow read, write: if 'X-Firebase-AppCheck' in request.headers;

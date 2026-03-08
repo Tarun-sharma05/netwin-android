@@ -380,6 +380,11 @@ fun NavGraph(firebaseManager: FirebaseManager) {
                          composable<ScreenRoutes.WalletScreen> {
                             WalletScreen(navController = navController)
                         }
+                        composable<ScreenRoutes.ManualUpiDepositScreen> {
+                            ManualUpiDepositScreen(
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
                         composable<ScreenRoutes.TransactionHistoryScreen> {
                             TransactionHistoryScreen()
                         }

@@ -3,8 +3,17 @@ package com.cehpoint.netwin.utils
 import com.cehpoint.netwin.data.model.PaymentMethod
 import com.cehpoint.netwin.data.model.TransactionType
 import com.cehpoint.netwin.data.model.Wallet
-
+import com.cehpoint.netwin.utils.CurrencyUtils
 object NGNTransactionUtils {
+    
+    // Supported currencies with their symbols
+    val SUPPORTED_CURRENCIES = mapOf(
+        "INR" to "₹",
+        "NGN" to "₦",
+        "USD" to "$",
+        "EUR" to "€",
+        "GBP" to "£"
+    )
     
     // Nigerian Banks with their codes
     val NIGERIAN_BANKS = mapOf(
@@ -106,7 +115,7 @@ object NGNTransactionUtils {
     }
 
     fun validateCurrency(currency: String): Boolean {
-        return Wallet.SUPPORTED_CURRENCIES.containsKey(currency.uppercase())
+        return SUPPORTED_CURRENCIES.containsKey(currency.uppercase())
     }
     
     fun validateAmountForCurrency(amount: Double, currency: String): Boolean {
@@ -186,7 +195,7 @@ object NGNTransactionUtils {
     }
     
     fun getCurrencyDisplayInfo(currency: String): String {
-        val currencyInfo = Wallet.getCurrencyInfo(currency)
+        val currencyInfo = CurrencyUtils.getCurrencyInfo(currency)
         return if (currencyInfo != null) {
             "${currencyInfo.symbol} ${currencyInfo.name}"
         } else {

@@ -1,5 +1,6 @@
 package com.cehpoint.netwin.presentation.theme
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -14,6 +15,31 @@ object NetwinTokens {
     val TextPrimary = Color(0xFFEFEFFF)
     val TextSecondary = Color(0xFFB0B3C3)
     val Divider = Color(0xFF2A2C39)
+    
+    // Gradients - NetWin Brand Gradient
+    val PrimaryGradient = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF6C3AFF), // Purple
+            Color(0xFFFF3A8C), // Pink
+            Color(0xFF3AFFDC)  // Cyan
+        )
+    )
+    
+    val PrimaryGradientHorizontal = Brush.horizontalGradient(
+        colors = listOf(
+            Color(0xFF6C3AFF), // Purple
+            Color(0xFFFF3A8C), // Pink
+            Color(0xFF3AFFDC)  // Cyan
+        )
+    )
+    
+    // Status Colors (Web App Aligned)
+    val StatusUpcoming = Color(0xFFFFC107) // Yellow
+    val StatusLive = Color(0xFFF44336)     // Red
+    val StatusCompleted = Color(0xFF4CAF50) // Green
+    val SuccessGreen = Color(0xFF4CAF50)
+    val ErrorRed = Color(0xFFF44336)
+    val WarningYellow = Color(0xFFFFC107)
 
 
     // Spacing
